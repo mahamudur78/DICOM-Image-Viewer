@@ -3,8 +3,10 @@ import {
   EllipticalROITool,
   Enums as ToolEnums,
   LengthTool,
+  MagnifyTool,
   PanTool,
   ProbeTool,
+  ReferenceLinesTool,
   StackScrollTool,
   ToolGroupManager,
   WindowLevelTool,
@@ -13,6 +15,7 @@ import {
 
 const { MouseBindings } = ToolEnums
 
+/** One tool group shared by every viewport; viewports join it as they mount. */
 export const TOOL_GROUP_ID = 'main-tool-group'
 
 /** Tools that can be bound to the left mouse button from the toolbar. */
@@ -20,6 +23,7 @@ export const PRIMARY_TOOLS = {
   windowLevel: WindowLevelTool.toolName,
   pan: PanTool.toolName,
   zoom: ZoomTool.toolName,
+  magnify: MagnifyTool.toolName,
   length: LengthTool.toolName,
   angle: AngleTool.toolName,
   ellipse: EllipticalROITool.toolName,
@@ -28,12 +32,13 @@ export const PRIMARY_TOOLS = {
 
 export type PrimaryTool = keyof typeof PRIMARY_TOOLS
 
-export function createToolGroup(renderingEngineId: string, viewportId: string) {
+export function createToolGroup() {
   ToolGroupManager.destroyToolGroup(TOOL_GROUP_ID)
   const toolGroup = ToolGroupManager.createToolGroup(TOOL_GROUP_ID)!
 
   for (const toolName of Object.values(PRIMARY_TOOLS)) toolGroup.addTool(toolName)
   toolGroup.addTool(StackScrollTool.toolName)
+  toolGroup.addTool(ReferenceLinesTool.toolName)
 
   // Fixed bindings that work regardless of the selected toolbar tool.
   toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
@@ -44,9 +49,22 @@ export function createToolGroup(renderingEngineId: string, viewportId: string) {
   for (const toolName of [LengthTool, AngleTool, EllipticalROITool, ProbeTool].map((t) => t.toolName)) {
     toolGroup.setToolPassive(toolName)
   }
-
-  toolGroup.addViewport(viewportId, renderingEngineId)
   return toolGroup
+}
+
+/**
+ * Draws the plane of the source viewport (the active one) as a line on every
+ * other viewport that intersects it, e.g. the axial slice position on a scout.
+ */
+export function setReferenceLines(sourceViewportId: string | null) {
+  const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)
+  if (!toolGroup) return
+  if (!sourceViewportId) {
+    toolGroup.setToolDisabled(ReferenceLinesTool.toolName)
+    return
+  }
+  toolGroup.setToolConfiguration(ReferenceLinesTool.toolName, { sourceViewportId })
+  toolGroup.setToolEnabled(ReferenceLinesTool.toolName)
 }
 
 export function setPrimaryTool(tool: PrimaryTool) {

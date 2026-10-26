@@ -1,6 +1,7 @@
 import { cache } from '@cornerstonejs/core'
 import { wadouri } from '@cornerstonejs/dicom-image-loader'
 import dicomParser from 'dicom-parser'
+import { clearImagePlanes, recordImagePlane } from './imagePlaneMetadata'
 import type { ImageEntry, Series, Study } from './types'
 
 export interface LoadResult {
@@ -37,6 +38,13 @@ function sliceLocation(dataSet: dicomParser.DataSet): number | null {
   return Number.isFinite(value) ? value : null
 }
 
+const LOCALIZER_DESCRIPTION = /scout|localizer|locator|topogram|surview|scanogram|survey/i
+
+function isLocalizer(dataSet: dicomParser.DataSet, description: string) {
+  const imageType = dataSet.string('x00080008') ?? ''
+  return imageType.toUpperCase().includes('LOCALIZER') || LOCALIZER_DESCRIPTION.test(description)
+}
+
 function compareImages(a: ImageEntry, b: ImageEntry) {
   if (a.instanceNumber !== b.instanceNumber) return a.instanceNumber - b.instanceNumber
   if (a.sliceLocation !== null && b.sliceLocation !== null) return a.sliceLocation - b.sliceLocation
@@ -51,6 +59,7 @@ function compareImages(a: ImageEntry, b: ImageEntry) {
 export function releaseLoadedImages() {
   cache.purgeCache()
   wadouri.dataSetCacheManager.purge()
+  clearImagePlanes()
 }
 
 /**
@@ -99,8 +108,11 @@ export async function loadFiles(
           seriesNumber: Number(dataSet.string('x00200011') ?? 0) || 0,
           description: dataSet.string('x0008103e') ?? '',
           modality: dataSet.string('x00080060') ?? '',
+          hasOrientation: !!dataSet.string('x00200037'),
+          isLocalizer: false,
           images: [],
         }
+        series.isLocalizer = isLocalizer(dataSet, series.description)
         seriesByUID.set(seriesUID, series)
         study.series.push(series)
       }
@@ -112,6 +124,7 @@ export async function loadFiles(
 
       if (frames > 1) {
         for (let frame = 1; frame <= frames; frame++) {
+          recordImagePlane(`${baseImageId}?frame=${frame}`, dataSet)
           series.images.push({
             imageId: `${baseImageId}?frame=${frame}`,
             file,
@@ -120,6 +133,7 @@ export async function loadFiles(
           })
         }
       } else {
+        recordImagePlane(baseImageId, dataSet)
         series.images.push({ imageId: baseImageId, file, instanceNumber, sliceLocation: location })
       }
     } catch {

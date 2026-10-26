@@ -11,8 +11,21 @@ export interface Series {
   seriesNumber: number
   description: string
   modality: string
+  /** True when ImageOrientationPatient is present, so R/L/A/P labels are meaningful. */
+  hasOrientation: boolean
+  /** Scout / localizer / topogram, shown first by the hanging protocol. */
+  isLocalizer: boolean
   images: ImageEntry[]
 }
+
+/** A series together with the study it belongs to, as shown in a viewport. */
+export interface DisplaySet {
+  study: Study
+  series: Series
+}
+
+/** Drag-and-drop MIME type used to drag a series thumbnail onto a viewport. */
+export const SERIES_DRAG_TYPE = 'application/x-dicom-series'
 
 export interface Study {
   studyInstanceUID: string

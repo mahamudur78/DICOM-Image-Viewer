@@ -16,6 +16,9 @@ npm run lint
 
 `predev`/`prebuild` copy the codec WASM files into `public/wasm/` (git-ignored).
 
+Test data without patient information: `node scripts/generate-phantom.mjs <dir>` writes
+a synthetic CT study (coronal scout + 2.5 mm and 5 mm axial series in one frame of reference).
+
 ## Features (MVP)
 
 - Open files or whole folders (button or drag & drop), `.dcm` or extension-less
@@ -26,6 +29,9 @@ npm run lint
 - DICOM tag inspector with search
 - Compressed transfer syntaxes via WASM codecs (JPEG, JPEG 2000, JPEG-LS, HTJ2K, JPEG XL)
 
-Keyboard: `↑/↓` slice · `W P Z L A E B` tools · `I` invert · `R` reset · `T` tags
+- Thumbnails, 1×1 / 1×2 / 2×1 / 2×2 layouts, drag series onto viewports, double-click to maximize
+- Orientation markers, reference lines, position-based scroll sync, window/level sync, magnifier
+
+Keyboard: `↑/↓` slice · `W P Z M L A E B` tools · `I` invert · `R` reset · `T` tags
 
 Not for diagnostic use.

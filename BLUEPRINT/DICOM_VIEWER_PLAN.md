@@ -82,6 +82,37 @@ MedDream-এর মতো একটা ওয়েব-ভিত্তিক DIC
 - [x] কিবোর্ড শর্টকাট (↑/↓ দিয়ে স্লাইস, R দিয়ে reset, I দিয়ে invert)
 - [x] "Not for diagnostic use" ডিসক্লেইমার
 
+### MedDream-এর মতো UI: ধাপ A (সম্পন্ন)
+
+- [x] সাইডবারে সিরিজের thumbnail, সাথে ইমেজের সংখ্যার ব্যাজ (মোবাইলে উপরে আড়াআড়ি স্ট্রিপ)
+- [x] লেআউট 1×1, 1×2, 2×1, 2×2; ফাইল খুললে সিরিজের সংখ্যা দেখে লেআউট নিজে থেকে ঠিক হয় (সাধারণ hanging protocol)
+- [x] Active viewport (নীল বর্ডার); টুলবারের কাজ আর কিবোর্ড শর্টকাট শুধু active viewport-এ প্রযোজ্য
+- [x] প্রতি viewport-এ আলাদা overlay: নাম, ID, মাপ, তারিখ, সিরিজ, Z, W/L, ইমেজ নম্বর; ছোট ঘরে container query দিয়ে কম তথ্য দেখায়
+- [x] R/L/A/P চিহ্ন, camera থেকে হিসাব করা, তাই rotate বা flip করলেও ঠিক থাকে; ImageOrientationPatient না থাকলে দেখায় না
+- [x] Thumbnail টেনে যেকোনো viewport-এ ফেলা যায়, আর ক্লিক করলে active viewport-এ খোলে
+- [x] Double-click করলে viewport বড় হয়, আবার double-click করলে আগের মতো ফিরে আসে
+- [x] প্রতি viewport-এ উল্লম্ব scrollbar
+- [x] লেআউট বদলালে বা viewport বড়-ছোট করলে আগের slice নম্বর মনে থাকে
+
+### MedDream-এর মতো UI: ধাপ B (সম্পন্ন)
+
+- [x] রেফারেন্স লাইন (`ReferenceLinesTool`): active viewport-এর প্লেন অন্য viewport-এ লাইন হিসেবে দেখায় (যেমন axial slice-এর অবস্থান scout-এ)। ডিফল্টে চালু, টুলবারের REF বোতাম দিয়ে বন্ধ করা যায়।
+- [x] Sync scroll (SYNC): একই প্লেনের সিরিজগুলো (যেমন axial-axial) রোগীর শরীরের অবস্থান অনুযায়ী একসাথে স্ক্রল হয়, slice-এর ঘনত্ব আলাদা হলেও।
+- [x] Sync W/L: window/level আর invert সব viewport-এ একসাথে বদলায়।
+- [x] Magnifier টুল (M)
+- [x] Hanging protocol: scout বা localizer আগে বসে (ImageType LOCALIZER, অথবা বিবরণে scout/topogram ইত্যাদি থাকলে)
+- [x] `scripts/generate-phantom.mjs`: রোগীর তথ্য ছাড়া একটা কৃত্রিম CT স্টাডি বানায় (scout আর 2.5mm ও 5mm-এর axial সিরিজ), পরীক্ষার জন্য।
+
+ধাপ B করার সময় পাওয়া বিষয়:
+- **Geometry metadata-র fallback:** legacy loader শুধু লোড হওয়া ইমেজের `imagePlaneModule` জানে। কিন্তু sync করতে লক্ষ্য সিরিজের সব ইমেজের অবস্থান লাগে। তাই ফাইল খোলার সময় header থেকে geometry রেখে দেওয়া হয়, আর সেটা কম priority-র (-100) provider দিয়ে দেওয়া হয় (`src/dicom/imagePlaneMetadata.ts`)।
+- **শুধু active viewport-ই source:** সব viewport source হলে কম slice-এর (মোটা) সিরিজ নিজের সবচেয়ে কাছের slice-এ গিয়ে উল্টো দিকে sync পাঠায়, তাতে স্ক্রল একবারে ২ ধাপ লাফায়। এখন active viewport source, বাকিরা target, আর কোনো viewport-এ হুইল ঘোরালে সেটা active হয়ে যায়।
+- **Rendering engine আগে বানাতে হয়:** `ReferenceLinesTool` প্রথম rendering engine-এ viewport খোঁজে। তাই thumbnail-এর আগে init-এর সময়েই মূল engine বানানো হয়।
+
+### MedDream-এর মতো UI: ধাপ C
+
+- [ ] MPR, crosshair, MIP (`VolumeViewport`)
+- [ ] আরও hanging protocol নিয়ম (যেমন আগের আর এখনকার স্টাডি পাশাপাশি তুলনা)
+
 ### ধাপ ২
 
 - [ ] Viewer lazy-load (landing page-এর বান্ডেল ছোট রাখা)

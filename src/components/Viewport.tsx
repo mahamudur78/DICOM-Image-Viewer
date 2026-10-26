@@ -1,20 +1,26 @@
 import { Enums } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
+import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import {
   getViewport,
   mountViewport,
-  resizeViewport,
+  rememberIndex,
+  resizeViewports,
   setImageIndex,
   showStack,
   unmountViewport,
 } from '../cornerstone/viewer'
-import type { Series, Study } from '../dicom/types'
+import type { DisplaySet } from '../dicom/types'
+import { ImageScrollbar } from './ImageScrollbar'
 
 interface ViewportProps {
-  study: Study
-  series: Series
-  onError: (message: string) => void
+  viewportId: string
+  displaySet: DisplaySet
+  active: boolean
+  onActivate: () => void
+  onToggleMaximize: () => void
   onIndexChange: (index: number) => void
+  onError: (message: string) => void
 }
 
 interface OverlayState {
@@ -22,53 +28,83 @@ interface OverlayState {
   windowWidth: number | null
   windowCenter: number | null
   zoom: number
+  size: string
+  markers: OrientationMarkers | null
 }
 
-export function Viewport({ study, series, onError, onIndexChange }: ViewportProps) {
+const INITIAL_OVERLAY: OverlayState = {
+  index: 0,
+  windowWidth: null,
+  windowCenter: null,
+  zoom: 1,
+  size: '',
+  markers: null,
+}
+
+export function Viewport({
+  viewportId,
+  displaySet,
+  active,
+  onActivate,
+  onToggleMaximize,
+  onIndexChange,
+  onError,
+}: ViewportProps) {
+  const { study, series } = displaySet
   const elementRef = useRef<HTMLDivElement>(null)
   const onIndexChangeRef = useRef(onIndexChange)
-  const [overlay, setOverlay] = useState<OverlayState>({ index: 0, windowWidth: null, windowCenter: null, zoom: 1 })
-  const [loadedSeries, setLoadedSeries] = useState<Series | null>(null)
+  const seriesRef = useRef(series)
+  const [overlay, setOverlay] = useState<OverlayState>(INITIAL_OVERLAY)
+  const [loadedSeries, setLoadedSeries] = useState<DisplaySet['series'] | null>(null)
   const loading = loadedSeries !== series
   const count = series.images.length
 
   useEffect(() => {
     onIndexChangeRef.current = onIndexChange
-  }, [onIndexChange])
+    seriesRef.current = series
+  }, [onIndexChange, series])
 
   useEffect(() => {
     const element = elementRef.current!
-    mountViewport(element)
+    mountViewport(viewportId, element)
 
     const update = () => {
-      const viewport = getViewport()
+      const viewport = getViewport(viewportId)
       if (!viewport) return
       const voi = viewport.getProperties().voiRange
+      const image = viewport.getCornerstoneImage()
       const index = viewport.getCurrentImageIdIndex()
+      rememberIndex(viewportId, seriesRef.current.seriesInstanceUID, index)
       onIndexChangeRef.current(index)
       setOverlay({
         index,
         windowWidth: voi ? Math.round(voi.upper - voi.lower) : null,
         windowCenter: voi ? Math.round((voi.upper + voi.lower) / 2) : null,
         zoom: viewport.getZoom(),
+        size: image ? `${image.columns} × ${image.rows}` : '',
+        markers: seriesRef.current.hasOrientation ? getOrientationMarkers(viewport) : null,
       })
     }
     const events = [Enums.Events.STACK_NEW_IMAGE, Enums.Events.VOI_MODIFIED, Enums.Events.CAMERA_MODIFIED]
     for (const event of events) element.addEventListener(event, update)
 
-    const resizeObserver = new ResizeObserver(() => resizeViewport())
+    const resizeObserver = new ResizeObserver(() => resizeViewports())
     resizeObserver.observe(element)
 
     return () => {
       resizeObserver.disconnect()
       for (const event of events) element.removeEventListener(event, update)
-      unmountViewport()
+      unmountViewport(viewportId)
     }
-  }, [])
+  }, [viewportId])
 
   useEffect(() => {
     let cancelled = false
-    showStack(series.images.map((image) => image.imageId))
+    showStack(
+      viewportId,
+      series.seriesInstanceUID,
+      series.images.map((image) => image.imageId),
+    )
       .catch((error: unknown) => {
         if (!cancelled) onError(`Could not display this series: ${describeError(error)}`)
       })
@@ -78,59 +114,64 @@ export function Viewport({ study, series, onError, onIndexChange }: ViewportProp
     return () => {
       cancelled = true
     }
-  }, [series, onError])
+  }, [viewportId, series, onError])
+
+  const { markers } = overlay
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="relative min-h-0 flex-1 bg-black" onContextMenu={(event) => event.preventDefault()}>
-        <div ref={elementRef} className="absolute inset-0" />
+    <div
+      className={`@container relative h-full w-full overflow-hidden bg-black outline-1 -outline-offset-1 ${
+        active ? 'z-10 outline-2 outline-sky-500' : 'outline-slate-800'
+      }`}
+      onPointerDownCapture={onActivate}
+      onWheelCapture={active ? undefined : onActivate}
+      onDoubleClick={onToggleMaximize}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <div ref={elementRef} className="absolute inset-0" />
 
-        <div className="pointer-events-none absolute inset-0 p-3 font-mono text-xs leading-5 text-amber-100/90 [text-shadow:0_1px_2px_#000]">
-          <div className="absolute left-3 top-3">
-            <div className="font-semibold">{study.patientName}</div>
-            {study.patientId && <div>ID: {study.patientId}</div>}
-            <div>{study.studyDate}</div>
+      <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
+        {/* Small cells (e.g. 2×2 on a phone) show only the essentials. */}
+        <div className="absolute left-2 top-2 max-w-[40%]">
+          <div className="truncate font-semibold">{study.patientName}</div>
+          {study.patientId && <div className="truncate @max-xs:hidden">{study.patientId}</div>}
+          {overlay.size && <div className="@max-xs:hidden">{overlay.size}</div>}
+        </div>
+        <div className="absolute right-5 top-2 max-w-[40%] text-right @max-xs:hidden">
+          <div className="truncate">{study.studyDate}</div>
+          <div>
+            {series.modality} · #{series.seriesNumber}
           </div>
-          <div className="absolute right-3 top-3 text-right">
-            <div>{series.modality}</div>
-            <div className="max-w-56 truncate">{series.description || `Series ${series.seriesNumber}`}</div>
-          </div>
-          <div className="absolute bottom-3 left-3">
+          {series.description && <div className="truncate">{series.description}</div>}
+        </div>
+        <div className="absolute bottom-2 left-2">
+          <div>Z: {overlay.zoom.toFixed(2)}</div>
+          {overlay.windowWidth !== null && (
             <div>
-              Im: {overlay.index + 1} / {count}
+              W: {overlay.windowWidth} L: {overlay.windowCenter}
             </div>
-            {overlay.windowWidth !== null && (
-              <div>
-                W: {overlay.windowWidth} L: {overlay.windowCenter}
-              </div>
-            )}
-            <div>Zoom: {overlay.zoom.toFixed(2)}×</div>
-          </div>
-          <div className="absolute bottom-3 right-3 text-right text-amber-100/60">Not for diagnostic use</div>
+          )}
+        </div>
+        <div className="absolute bottom-2 right-5 text-right">
+          {overlay.index + 1} / {count}
         </div>
 
-        {loading && (
-          <div className="absolute inset-0 grid place-items-center bg-black/40 text-sm text-slate-200">
-            Loading images…
+        {markers && (
+          <div className="text-sm font-semibold text-amber-200/90">
+            <span className="absolute left-1/2 top-2 -translate-x-1/2">{markers.top}</span>
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 @max-xs:bottom-10">{markers.bottom}</span>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2">{markers.left}</span>
+            <span className="absolute right-5 top-1/2 -translate-y-1/2">{markers.right}</span>
           </div>
         )}
       </div>
 
       {count > 1 && (
-        <div className="flex items-center gap-3 border-t border-slate-800 bg-slate-900 px-4 py-2">
-          <input
-            type="range"
-            min={0}
-            max={count - 1}
-            value={overlay.index}
-            onChange={(event) => void setImageIndex(Number(event.target.value))}
-            className="w-full accent-sky-500"
-            aria-label="Slice"
-          />
-          <span className="w-20 shrink-0 text-right font-mono text-xs text-slate-400">
-            {overlay.index + 1} / {count}
-          </span>
-        </div>
+        <ImageScrollbar count={count} index={overlay.index} onChange={(index) => void setImageIndex(viewportId, index)} />
+      )}
+
+      {loading && (
+        <div className="absolute inset-0 grid place-items-center bg-black/40 text-sm text-slate-200">Loading images…</div>
       )}
     </div>
   )
