@@ -11,6 +11,7 @@ import {
   type Types,
 } from '@cornerstonejs/core'
 import { ToolGroupManager } from '@cornerstonejs/tools'
+import { getImagePlane } from '../dicom/imagePlaneMetadata'
 import type { Series } from '../dicom/types'
 import { MPR_TOOL_GROUP_ID } from './tools'
 import { RENDERING_ENGINE_ID, createRenderingEngine } from './viewer'
@@ -56,13 +57,40 @@ export function mprUnsupportedReason(series: Series): string | null {
   return null
 }
 
+const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.seriesInstanceUID}`
+
+export function isVolumeCached(series: Series) {
+  return !!cache.getVolume(volumeIdFor(series))
+}
+
+/** Rough size of the series as a 16-bit volume, in bytes (float data would be twice this). */
+export function estimateVolumeBytes(series: Series) {
+  const plane = getImagePlane(series.images[0].imageId)
+  return plane ? plane.rows * plane.columns * series.images.length * 2 : 0
+}
+
+/** Budget above which building a volume asks for confirmation; smaller on phones. */
+export function volumeMemoryBudget() {
+  const deviceMemoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  const smallDevice = window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)
+  return (smallDevice ? 192 : 512) * 1024 * 1024
+}
+
+let webgl2: boolean | null = null
+
+/** Volume rendering needs WebGL2 (3D textures). */
+export function supportsWebGL2() {
+  webgl2 ??= !!document.createElement('canvas').getContext('webgl2')
+  return webgl2
+}
+
 /**
  * Builds (or reuses) a streaming volume for the series and starts loading its
  * slices. Resolves once the volume's geometry is known; pixels keep streaming
  * in and `onProgress` reports the fraction loaded.
  */
 export async function loadVolume(series: Series, onProgress: (fraction: number) => void): Promise<string> {
-  const volumeId = `${VOLUME_SCHEME}:${series.seriesInstanceUID}`
+  const volumeId = volumeIdFor(series)
   const imageIds = series.images.map((image) => image.imageId)
 
   const cached = cache.getVolume(volumeId) as Types.IStreamingImageVolume | undefined

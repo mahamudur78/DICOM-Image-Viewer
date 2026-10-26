@@ -125,7 +125,7 @@ MedDream-এর মতো একটা ওয়েব-ভিত্তিক DIC
 
 ### পরের ধাপের সম্ভাব্য কাজ
 
-- [ ] 3D volume rendering (`VOLUME_3D` viewport)
+- [x] 3D volume rendering: বিস্তারিত [3D_VR_PLAN.md](3D_VR_PLAN.md)-এ
 - [ ] আরও hanging protocol নিয়ম (যেমন আগের আর এখনকার স্টাডি পাশাপাশি তুলনা)
 - [ ] অনেক বড় স্টাডিতে (৫০০+ slice) মেমোরি সীমা: cache-এর আকার বেঁধে দেওয়া, আর volume তৈরির আগে সতর্কবার্তা দেখানো
 

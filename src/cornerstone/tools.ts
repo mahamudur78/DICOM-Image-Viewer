@@ -5,11 +5,13 @@ import {
   Enums as ToolEnums,
   LengthTool,
   MagnifyTool,
+  OrientationMarkerTool,
   PanTool,
   ProbeTool,
   ReferenceLinesTool,
   StackScrollTool,
   ToolGroupManager,
+  TrackballRotateTool,
   WindowLevelTool,
   ZoomTool,
 } from '@cornerstonejs/tools'
@@ -20,6 +22,11 @@ const { MouseBindings } = ToolEnums
 export const TOOL_GROUP_ID = 'main-tool-group'
 /** Tool group of the three MPR (volume) viewports. */
 export const MPR_TOOL_GROUP_ID = 'mpr-tool-group'
+/** Tool group of the 3D volume rendering viewport. */
+export const VR_TOOL_GROUP_ID = 'vr-tool-group'
+
+/** Name of the custom preset-shift tool (defined in volume3d.ts to keep vtk details there). */
+export const VOLUME_SHIFT_TOOL = 'VolumeShift'
 
 /** Tools that can be bound to the left mouse button from the toolbar. */
 export const PRIMARY_TOOLS = {
@@ -28,6 +35,8 @@ export const PRIMARY_TOOLS = {
   zoom: ZoomTool.toolName,
   magnify: MagnifyTool.toolName,
   crosshairs: CrosshairsTool.toolName,
+  rotate: TrackballRotateTool.toolName,
+  shift: VOLUME_SHIFT_TOOL,
   length: LengthTool.toolName,
   angle: AngleTool.toolName,
   ellipse: EllipticalROITool.toolName,
@@ -36,35 +45,60 @@ export const PRIMARY_TOOLS = {
 
 export type PrimaryTool = keyof typeof PRIMARY_TOOLS
 
-/** Crosshairs only work across volume viewports, so they exist in MPR only. */
-const MPR_ONLY_TOOLS: string[] = [CrosshairsTool.toolName]
+const MEASUREMENTS: PrimaryTool[] = ['length', 'angle', 'ellipse', 'probe']
+
+/** Which toolbar tools exist in each view mode's tool group. */
+const GROUP_TOOLS: Record<string, PrimaryTool[]> = {
+  [TOOL_GROUP_ID]: ['windowLevel', 'pan', 'zoom', 'magnify', ...MEASUREMENTS],
+  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'pan', 'zoom', 'magnify', 'crosshairs', ...MEASUREMENTS],
+  [VR_TOOL_GROUP_ID]: ['rotate', 'shift', 'pan', 'zoom'],
+}
 
 function setupToolGroup(id: string) {
   ToolGroupManager.destroyToolGroup(id)
   const toolGroup = ToolGroupManager.createToolGroup(id)!
-  const isMpr = id === MPR_TOOL_GROUP_ID
-
-  for (const toolName of Object.values(PRIMARY_TOOLS)) {
-    if (isMpr || !MPR_ONLY_TOOLS.includes(toolName)) toolGroup.addTool(toolName)
-  }
-  toolGroup.addTool(StackScrollTool.toolName)
+  const tools = GROUP_TOOLS[id]
+  for (const tool of tools) toolGroup.addTool(PRIMARY_TOOLS[tool])
 
   // Fixed bindings that work regardless of the selected toolbar tool.
   toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
   toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] })
-  toolGroup.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
 
-  // Measurements (and crosshairs) stay visible and editable when another tool is selected.
-  for (const toolName of [LengthTool, AngleTool, EllipticalROITool, ProbeTool].map((t) => t.toolName)) {
-    toolGroup.setToolPassive(toolName)
+  // Measurements stay visible and editable when another tool is selected.
+  for (const tool of tools) {
+    if (MEASUREMENTS.includes(tool)) toolGroup.setToolPassive(PRIMARY_TOOLS[tool])
   }
   return toolGroup
 }
 
 export function createToolGroups() {
-  setupToolGroup(TOOL_GROUP_ID).addTool(ReferenceLinesTool.toolName)
-  setupToolGroup(MPR_TOOL_GROUP_ID)
+  for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
+    const toolGroup = setupToolGroup(id)
+    toolGroup.addTool(StackScrollTool.toolName)
+    toolGroup.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
+  }
+  ToolGroupManager.getToolGroup(TOOL_GROUP_ID)!.addTool(ReferenceLinesTool.toolName)
+
+  // 3D: the wheel zooms (there are no slices to scroll), and the cube shows orientation.
+  const vr = setupToolGroup(VR_TOOL_GROUP_ID)
+  vr.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
+  vr.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] })
+  vr.addTool(OrientationMarkerTool.toolName)
+  vr.setToolEnabled(OrientationMarkerTool.toolName)
 }
+
+export type ViewMode = 'grid' | 'mpr' | '3d'
+
+const groupForMode = (mode: ViewMode) =>
+  mode === 'grid' ? TOOL_GROUP_ID : mode === 'mpr' ? MPR_TOOL_GROUP_ID : VR_TOOL_GROUP_ID
+
+/** Tools the toolbar offers in a view mode. */
+export function toolsForMode(mode: ViewMode): PrimaryTool[] {
+  return GROUP_TOOLS[groupForMode(mode)]
+}
+
+/** The tool selected when a mode opens. */
+export const DEFAULT_TOOL: Record<ViewMode, PrimaryTool> = { grid: 'windowLevel', mpr: 'crosshairs', '3d': 'rotate' }
 
 /**
  * Draws the plane of the source viewport (the active one) as a line on every
@@ -81,16 +115,17 @@ export function setReferenceLines(sourceViewportId: string | null) {
   toolGroup.setToolEnabled(ReferenceLinesTool.toolName)
 }
 
-/** Binds the tool to the left mouse button in every tool group that has it. */
-export function setPrimaryTool(tool: PrimaryTool) {
+/**
+ * Binds the tool to the left mouse button in the current mode's tool group.
+ * Other groups keep their own tool, so the 3D cell of "MPR + 3D" keeps rotating.
+ */
+export function setPrimaryTool(tool: PrimaryTool, mode: ViewMode) {
   const toolName = PRIMARY_TOOLS[tool]
-  for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
-    const toolGroup = ToolGroupManager.getToolGroup(id)
-    if (!toolGroup?.hasTool(toolName)) continue
+  const toolGroup = ToolGroupManager.getToolGroup(groupForMode(mode))
+  if (!toolGroup?.hasTool(toolName)) return
 
-    const current = toolGroup.getActivePrimaryMouseButtonTool()
-    if (current === toolName) continue
-    if (current) toolGroup.setToolPassive(current)
-    toolGroup.setToolActive(toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] })
-  }
+  const current = toolGroup.getActivePrimaryMouseButtonTool()
+  if (current === toolName) return
+  if (current) toolGroup.setToolPassive(current)
+  toolGroup.setToolActive(toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] })
 }

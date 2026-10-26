@@ -45,6 +45,10 @@ export function recordImagePlane(imageId: string, dataSet: dicomParser.DataSet) 
   })
 }
 
+export function getImagePlane(imageId: string) {
+  return planes.get(imageId)
+}
+
 export function clearImagePlanes() {
   planes.clear()
 }

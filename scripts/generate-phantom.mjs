@@ -24,17 +24,26 @@ const EXPLICIT_VR_LE = '1.2.840.10008.1.2.1'
 const SIZE = 128 // pixels, 1 mm each
 const DEPTH_MM = 100
 
-/** Hounsfield value of the phantom at patient position (x, y, z) in mm. */
+/**
+ * Hounsfield value of the phantom at patient position (x, y, z) in mm.
+ * Bone is segmented along z (vertebrae with discs, ribs every 20 mm) and the
+ * aorta curves, so the 3D presets show recognisable structures.
+ */
 function hu(x, y, z, contrast) {
   const inEllipse = (cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1
+  const level = ((-z % 20) + 20) % 20 // position within a 20 mm vertebral level
   if (!inEllipse(0, 0, 58, 42)) return -1000 // air
-  if (inEllipse(0, 28, 9, 9)) return 700 // spine
+  if (inEllipse(0, 28, 9, 9)) return level < 16 ? 700 : 80 // vertebral body / disc
+  if (inEllipse(0, 39, 3, 4) && level < 16) return 650 // spinous process
+  if (level >= 4 && level < 8 && !inEllipse(0, 0, 52, 37)) return 600 // rib
+  if (Math.abs(x) <= 4 && y <= -36) return 550 // sternum
   if (inEllipse(-26, -2, 20, 28) || inEllipse(26, -2, 20, 28)) {
     // lungs, with a small nodule that only exists in some slices
     const nodule = (x - 26) ** 2 + (y + 5) ** 2 + (z + 50) ** 2 <= 36
     return nodule ? 20 : -820
   }
-  if (inEllipse(0, -8, 7, 7)) return contrast ? 300 : 45 // aorta
+  const aortaX = -4 + 6 * Math.sin(z / 25)
+  if (inEllipse(aortaX, -8, 7, 7)) return contrast ? 300 : 45 // aorta
   return 40 // soft tissue
 }
 

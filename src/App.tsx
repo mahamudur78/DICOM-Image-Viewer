@@ -1,16 +1,32 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { defaultLayoutFor, type Layout } from './components/layouts'
 import { MprView } from './components/MprView'
 import { Sidebar } from './components/Sidebar'
 import { TagPanel } from './components/TagPanel'
 import { Toolbar, type Slab } from './components/Toolbar'
+import { Volume3DView } from './components/Volume3DView'
 import { TOOL_SHORTCUTS, type LinkSettings } from './components/toolButtons'
 import { ViewportGrid } from './components/ViewportGrid'
 import { Welcome } from './components/Welcome'
 import { initCornerstone } from './cornerstone/init'
-import { MPR_VIEWPORTS, mprUnsupportedReason, setSlab } from './cornerstone/mpr'
+import {
+  MPR_VIEWPORTS,
+  estimateVolumeBytes,
+  isVolumeCached,
+  mprUnsupportedReason,
+  setSlab,
+  supportsWebGL2,
+  volumeMemoryBudget,
+} from './cornerstone/mpr'
 import { setSliceSync, setVoiSync } from './cornerstone/sync'
-import { setPrimaryTool, setReferenceLines, type PrimaryTool } from './cornerstone/tools'
+import {
+  DEFAULT_TOOL,
+  setPrimaryTool,
+  setReferenceLines,
+  toolsForMode,
+  type PrimaryTool,
+  type ViewMode,
+} from './cornerstone/tools'
 import {
   MAX_VIEWPORTS,
   forgetRememberedIndexes,
@@ -20,12 +36,19 @@ import {
   toggleInvert,
   viewportIdAt,
 } from './cornerstone/viewer'
+import { MPR_VR_VIEWPORT_ID, VR_VIEWPORT_ID, defaultPresetFor, isVrViewport, resetVr } from './cornerstone/volume3d'
 import { collectDroppedFiles } from './dicom/collectFiles'
 import { hangingOrder } from './dicom/hangingProtocol'
 import { loadFiles, releaseLoadedImages } from './dicom/loadFiles'
 import type { DisplaySet, Study } from './dicom/types'
 
 const EMPTY_CELLS: (DisplaySet | null)[] = Array(MAX_VIEWPORTS).fill(null)
+
+/** MPR or 3D view of one series, replacing the stack grid while open. */
+interface VolumeView {
+  mode: Exclude<ViewMode, 'grid'>
+  displaySet: DisplaySet
+}
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -41,15 +64,19 @@ export default function App() {
   const [showTags, setShowTags] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [links, setLinks] = useState<LinkSettings>({ referenceLines: true, sliceSync: false, voiSync: false })
-  const [mpr, setMpr] = useState<DisplaySet | null>(null)
+  const [volumeView, setVolumeView] = useState<VolumeView | null>(null)
   const [mprViewportId, setMprViewportId] = useState<string>(MPR_VIEWPORTS[0].id)
+  const [mprWith3d, setMprWith3d] = useState(false)
   const [slab, setSlabState] = useState<Slab>({ mode: 'mip', thickness: 0 })
+  const [preset, setPreset] = useState(defaultPresetFor('CT'))
 
   const hasStudies = studies.length > 0
   const activeDisplaySet = cells[activeCell]
   const activeViewportId = activeDisplaySet ? viewportIdAt(activeCell) : null
+  const mode: ViewMode = volumeView?.mode ?? 'grid'
+  const volumeSet = volumeView?.displaySet ?? null
   /** Viewport that toolbar actions and keyboard shortcuts apply to. */
-  const targetViewportId = mpr ? mprViewportId : activeViewportId
+  const targetViewportId = mode === 'grid' ? activeViewportId : mode === '3d' ? VR_VIEWPORT_ID : mprViewportId
 
   useEffect(() => {
     initCornerstone()
@@ -58,20 +85,20 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (ready) setPrimaryTool(activeTool)
-  }, [ready, activeTool])
+    if (ready) setPrimaryTool(activeTool, mode)
+  }, [ready, activeTool, mode])
 
   // The active viewport drives reference lines and sync. Re-run whenever
   // viewports may have (re)mounted: new series, layout or maximize changes.
   useEffect(() => {
     if (!ready) return
-    const source = mpr ? null : (setActiveSource(activeViewportId) ?? null)
+    const source = mode === 'grid' ? (setActiveSource(activeViewportId) ?? null) : null
     setReferenceLines(links.referenceLines ? source : null)
-  }, [ready, mpr, links.referenceLines, activeViewportId, cells, layout, maximizedCell])
+  }, [ready, mode, links.referenceLines, activeViewportId, cells, layout, maximizedCell])
 
   useEffect(() => {
-    if (mpr) setSlab(slab.mode, slab.thickness)
-  }, [mpr, slab])
+    if (mode === 'mpr') setSlab(slab.mode, slab.thickness)
+  }, [mode, slab])
 
   useEffect(() => {
     if (!ready) return
@@ -83,7 +110,7 @@ export default function App() {
     if (files.length === 0) return
     // Unmount every viewport before releasing the images they display.
     setCells(EMPTY_CELLS)
-    setMpr(null)
+    setVolumeView(null)
     setStudies([])
     setMessage(null)
     setProgress({ done: 0, total: files.length })
@@ -114,21 +141,59 @@ export default function App() {
     setActiveCell(cell)
   }
 
-  /** Opens MPR for a series, or explains why it cannot be reconstructed. */
-  const openMpr = (displaySet: DisplaySet | null) => {
+  /**
+   * Opens MPR or 3D for a series after checking it can become a volume, the
+   * browser supports WebGL2, and the user accepts a large memory footprint.
+   */
+  const openVolumeView = (nextMode: VolumeView['mode'], displaySet: DisplaySet | null) => {
+    const name = nextMode === 'mpr' ? 'MPR' : '3D'
     if (!displaySet) return setMessage('Select a series first.')
+    if (!supportsWebGL2()) return setMessage(`${name} needs WebGL2, which this browser or device does not provide.`)
     const reason = mprUnsupportedReason(displaySet.series)
-    if (reason) return setMessage(`MPR is not available for this series. ${reason}`)
+    if (reason) return setMessage(`${name} is not available for this series. ${reason}`)
+
+    const bytes = estimateVolumeBytes(displaySet.series)
+    if (!isVolumeCached(displaySet.series) && bytes > volumeMemoryBudget()) {
+      const mb = Math.round(bytes / 1024 / 1024)
+      const proceed = window.confirm(
+        `This series needs about ${mb} MB of memory for ${name}. On this device the page may become slow or crash. Continue?`,
+      )
+      if (!proceed) return
+    }
+
     setMessage(null)
-    setSlabState((current) => ({ ...current, thickness: 0 }))
-    setMpr(displaySet)
-    setActiveTool('crosshairs')
+    if (displaySet.series !== volumeSet?.series) {
+      setSlabState((current) => ({ ...current, thickness: 0 }))
+      setPreset(defaultPresetFor(displaySet.series.modality))
+    }
+    if (nextMode !== mode) setActiveTool(DEFAULT_TOOL[nextMode])
+    setVolumeView({ mode: nextMode, displaySet })
   }
 
-  const closeMpr = () => {
-    setMpr(null)
-    setActiveTool((tool) => (tool === 'crosshairs' ? 'windowLevel' : tool))
+  const handleModeChange = (nextMode: ViewMode) => {
+    if (nextMode === mode || nextMode === 'grid') {
+      setVolumeView(null)
+      setActiveTool(DEFAULT_TOOL.grid)
+      return
+    }
+    openVolumeView(nextMode, volumeSet ?? activeDisplaySet)
   }
+
+  const toggleMprWith3d = () => {
+    setMprWith3d((value) => !value)
+    if (mprViewportId === MPR_VR_VIEWPORT_ID) setMprViewportId(MPR_VIEWPORTS[0].id)
+  }
+
+  const handleReset = () => {
+    if (!targetViewportId) return
+    if (isVrViewport(targetViewportId)) resetVr(targetViewportId, preset)
+    else resetView(targetViewportId)
+  }
+  // The keyboard handler is registered once per viewport change; read the latest reset through a ref.
+  const handleResetRef = useRef(handleReset)
+  useEffect(() => {
+    handleResetRef.current = handleReset
+  })
 
   const handleDropSeries = (cell: number, seriesUID: string) => {
     for (const study of studies) {
@@ -152,19 +217,22 @@ export default function App() {
       if (!hasStudies || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
       const key = event.key.toLowerCase()
-      if (TOOL_SHORTCUTS[key]) setActiveTool(TOOL_SHORTCUTS[key])
+      const shortcutTool = TOOL_SHORTCUTS[key]
+      const is3d = isVrViewport(targetViewportId)
+      if (shortcutTool && toolsForMode(mode).includes(shortcutTool)) setActiveTool(shortcutTool)
       else if (key === 't') setShowTags((value) => !value)
       else if (!targetViewportId) return
+      else if (key === 'r') handleResetRef.current()
+      else if (is3d) return
       else if (key === 'arrowup' || key === 'arrowleft') scrollImages(targetViewportId, -1)
       else if (key === 'arrowdown' || key === 'arrowright') scrollImages(targetViewportId, 1)
-      else if (key === 'r') resetView(targetViewportId)
       else if (key === 'i') toggleInvert(targetViewportId)
       else return
       event.preventDefault()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [hasStudies, targetViewportId])
+  }, [hasStudies, targetViewportId, mode])
 
   const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault()
@@ -173,8 +241,8 @@ export default function App() {
     await handleFiles(await collectDroppedFiles(event.dataTransfer))
   }
 
-  const currentFile = mpr
-    ? mpr.series.images[Math.floor(mpr.series.images.length / 2)]?.file
+  const currentFile = volumeSet
+    ? volumeSet.series.images[Math.floor(volumeSet.series.images.length / 2)]?.file
     : (activeDisplaySet?.series.images[cellIndexes[activeCell]]?.file ?? activeDisplaySet?.series.images[0]?.file)
 
   return (
@@ -201,18 +269,24 @@ export default function App() {
 
       {hasStudies && (
         <Toolbar
+          mode={mode}
+          onModeChange={handleModeChange}
           activeTool={activeTool}
           onToolChange={setActiveTool}
           viewportId={targetViewportId}
-          modality={(mpr ?? activeDisplaySet)?.series.modality ?? ''}
+          viewportIs3d={isVrViewport(targetViewportId)}
+          onReset={handleReset}
+          modality={(volumeSet ?? activeDisplaySet)?.series.modality ?? ''}
           layout={layout}
           onLayoutChange={handleLayoutChange}
           links={links}
           onToggleLink={(key) => setLinks((current) => ({ ...current, [key]: !current[key] }))}
-          mprActive={!!mpr}
-          onToggleMpr={() => (mpr ? closeMpr() : openMpr(activeDisplaySet))}
           slab={slab}
           onSlabChange={setSlabState}
+          mprWith3d={mprWith3d}
+          onToggleMprWith3d={toggleMprWith3d}
+          preset={preset}
+          onPresetChange={setPreset}
           showTags={showTags}
           onToggleTags={() => setShowTags((value) => !value)}
           onFiles={handleFiles}
@@ -234,20 +308,24 @@ export default function App() {
             <div className="shrink-0 lg:w-44">
               <Sidebar
                 studies={studies}
-                cells={mpr ? [mpr] : cells}
-                activeCell={mpr ? 0 : activeCell}
+                cells={volumeSet ? [volumeSet] : cells}
+                activeCell={volumeSet ? 0 : activeCell}
                 onSelect={(study, series) =>
-                  mpr ? openMpr({ study, series }) : showInCell(activeCell, { study, series })
+                  volumeView ? openVolumeView(volumeView.mode, { study, series }) : showInCell(activeCell, { study, series })
                 }
               />
             </div>
             <div className="min-h-0 min-w-0 flex-1">
-              {mpr ? (
+              {volumeView?.mode === '3d' ? (
+                <Volume3DView displaySet={volumeView.displaySet} preset={preset} onError={setMessage} />
+              ) : volumeView?.mode === 'mpr' ? (
                 <MprView
-                  displaySet={mpr}
+                  displaySet={volumeView.displaySet}
                   activeViewportId={mprViewportId}
                   onActivate={setMprViewportId}
                   onError={setMessage}
+                  with3d={mprWith3d}
+                  preset={preset}
                 />
               ) : (
                 <ViewportGrid

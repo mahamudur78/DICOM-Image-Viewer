@@ -6,10 +6,12 @@ import {
   EllipticalROITool,
   LengthTool,
   MagnifyTool,
+  OrientationMarkerTool,
   PanTool,
   ProbeTool,
   ReferenceLinesTool,
   StackScrollTool,
+  TrackballRotateTool,
   WindowLevelTool,
   ZoomTool,
   addTool,
@@ -20,6 +22,7 @@ import { registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
 import { createToolGroups } from './tools'
 import { createRenderingEngine } from './viewer'
+import { VolumeShiftTool } from './volume3d'
 
 let initPromise: Promise<void> | null = null
 
@@ -52,6 +55,9 @@ export function initCornerstone(): Promise<void> {
       ProbeTool,
       ReferenceLinesTool,
       CrosshairsTool,
+      TrackballRotateTool,
+      OrientationMarkerTool,
+      VolumeShiftTool,
     ]) {
       addTool(tool)
     }

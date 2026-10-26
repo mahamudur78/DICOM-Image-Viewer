@@ -3,48 +3,44 @@ import { useEffect, useRef, useState } from 'react'
 import {
   MPR_VIEWPORTS,
   getMprViewport,
-  loadVolume,
   mountMprViewport,
   showVolume,
   unmountMprViewport,
 } from '../cornerstone/mpr'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import { resizeViewports } from '../cornerstone/viewer'
+import { MPR_VR_VIEWPORT_ID } from '../cornerstone/volume3d'
 import type { DisplaySet } from '../dicom/types'
+import { useVolume } from './useVolume'
+import { VolumeProgress } from './VolumeProgress'
+import { VrViewport } from './VrViewport'
 
 interface MprViewProps {
   displaySet: DisplaySet
   activeViewportId: string
   onActivate: (viewportId: string) => void
   onError: (message: string) => void
+  /** Adds a 3D rendering of the same volume as a fourth (2×2) viewport. */
+  with3d: boolean
+  preset: string
 }
 
-/** Axial, sagittal and coronal reconstructions of one series, side by side. */
-export function MprView({ displaySet, activeViewportId, onActivate, onError }: MprViewProps) {
+/** Axial, sagittal and coronal reconstructions of one series, optionally with 3D. */
+export function MprView({ displaySet, activeViewportId, onActivate, onError, with3d, preset }: MprViewProps) {
   const { series } = displaySet
-  const [progress, setProgress] = useState(0)
-  const [ready, setReady] = useState<DisplaySet['series'] | null>(null)
+  const { volumeId, progress } = useVolume(series, onError)
 
   useEffect(() => {
-    let cancelled = false
-    loadVolume(series, (fraction) => !cancelled && setProgress(fraction))
-      .then(async (volumeId) => {
-        if (cancelled) return
-        await showVolume(volumeId, series.images[Math.floor(series.images.length / 2)].imageId)
-        if (!cancelled) setReady(series)
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) onError(`Could not build the volume: ${error instanceof Error ? error.message : String(error)}`)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [series, onError])
-
-  const building = ready !== series
+    if (!volumeId) return
+    void showVolume(volumeId, series.images[Math.floor(series.images.length / 2)].imageId)
+  }, [volumeId, series])
 
   return (
-    <div className="relative grid h-full w-full grid-rows-3 gap-px bg-slate-800 lg:grid-cols-3 lg:grid-rows-1">
+    <div
+      className={`relative grid h-full w-full gap-px bg-slate-800 ${
+        with3d ? 'grid-cols-2 grid-rows-2' : 'grid-rows-3 lg:grid-cols-3 lg:grid-rows-1'
+      }`}
+    >
       {MPR_VIEWPORTS.map(({ id, label, orientation }) => (
         <MprViewport
           key={id}
@@ -56,11 +52,17 @@ export function MprView({ displaySet, activeViewportId, onActivate, onError }: M
           onActivate={() => onActivate(id)}
         />
       ))}
-      {(building || progress < 1) && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-xs text-slate-200 shadow">
-          {building ? 'Building volume…' : 'Loading slices…'} {Math.round(progress * 100)}%
-        </div>
+      {with3d && (
+        <VrViewport
+          viewportId={MPR_VR_VIEWPORT_ID}
+          volumeId={volumeId}
+          preset={preset}
+          displaySet={displaySet}
+          active={activeViewportId === MPR_VR_VIEWPORT_ID}
+          onActivate={() => onActivate(MPR_VR_VIEWPORT_ID)}
+        />
       )}
+      <VolumeProgress volumeId={volumeId} progress={progress} />
     </div>
   )
 }
