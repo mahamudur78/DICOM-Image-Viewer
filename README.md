@@ -31,7 +31,8 @@ a synthetic CT study (coronal scout + 2.5 mm and 5 mm axial series in one frame 
 
 - Thumbnails, 1×1 / 1×2 / 2×1 / 2×2 layouts, drag series onto viewports, double-click to maximize
 - Orientation markers, reference lines, position-based scroll sync, window/level sync, magnifier
+- MPR (axial / sagittal / coronal) with crosshairs and thick-slab MIP / MinIP / average
 
-Keyboard: `↑/↓` slice · `W P Z M L A E B` tools · `I` invert · `R` reset · `T` tags
+Keyboard: `↑/↓` slice · `W P Z M L A E B` tools (`C` crosshairs in MPR) · `I` invert · `R` reset · `T` tags
 
 Not for diagnostic use.

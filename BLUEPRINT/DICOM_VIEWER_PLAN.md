@@ -108,10 +108,26 @@ MedDream-এর মতো একটা ওয়েব-ভিত্তিক DIC
 - **শুধু active viewport-ই source:** সব viewport source হলে কম slice-এর (মোটা) সিরিজ নিজের সবচেয়ে কাছের slice-এ গিয়ে উল্টো দিকে sync পাঠায়, তাতে স্ক্রল একবারে ২ ধাপ লাফায়। এখন active viewport source, বাকিরা target, আর কোনো viewport-এ হুইল ঘোরালে সেটা active হয়ে যায়।
 - **Rendering engine আগে বানাতে হয়:** `ReferenceLinesTool` প্রথম rendering engine-এ viewport খোঁজে। তাই thumbnail-এর আগে init-এর সময়েই মূল engine বানানো হয়।
 
-### MedDream-এর মতো UI: ধাপ C
+### MedDream-এর মতো UI: ধাপ C (সম্পন্ন)
 
-- [ ] MPR, crosshair, MIP (`VolumeViewport`)
+- [x] MPR: টুলবারের MPR বোতাম চাপলে active সিরিজ থেকে volume তৈরি হয়, আর axial/sagittal/coronal তিনটা ORTHOGRAPHIC viewport-এ দেখায় (মোবাইলে একটার নিচে আরেকটা)। সব slice লোড না হওয়া পর্যন্ত লোডের অগ্রগতি দেখায়।
+- [x] Crosshair (C): টানলে বাকি দুই প্লেনের slice বদলায়। MPR খুললে এটাই ডিফল্ট টুল।
+- [x] Slab / MIP: 5–40mm পুরুত্ব, MIP, MinIP বা Average।
+- [x] MPR-এ সাইডবার থেকে অন্য সিরিজে যাওয়া যায়। আগে তৈরি করা volume cache-এ থাকে।
+- [x] যে সিরিজে MPR সম্ভব না (৩টার কম slice, দিকের তথ্য নেই, multi-frame, বা দুই slice একই অবস্থানে), সেখানে কারণসহ বার্তা দেখায়।
+
+ধাপ C করার সময় পাওয়া বিষয়:
+- **Volume loader নিজে register করতে হয়:** `cornerstoneStreamingImageVolumeLoader` নিজে থেকে register হয় না। এর type ঘোষণা `VolumeLoaderFn`-এর সাথে মেলে না, তাই cast করতে হয়।
+- **আগে কয়েকটা ইমেজ লোড করতে হয়:** streaming loader শুধু `wadouri:` imageId-এর জন্য আগে থেকে ইমেজ লোড করে। আমাদের `dicomfile:` imageId-এর pixel আর VOI metadata তখনই পাওয়া যায় যখন ইমেজ লোড হয়। তাই volume বানানোর আগে প্রথম, মাঝের আর শেষ ইমেজটা নিজে লোড করা হয়। slice সাজানোর geometry আসে ধাপ B-এর fallback provider থেকে।
+- **শুরুর W/L:** volume নিজে থেকে পুরো pixel range-কে window হিসেবে নেয়। তাই সিরিজের `voiLutModule` থেকে আসল window বসানো হয়।
+- **লোডের অগ্রগতি:** `IStreamingImageVolume.load()`-এর type-এ callback নেই। তাই `IMAGE_VOLUME_MODIFIED` ইভেন্ট (`framesProcessed / numberOfFrames`) দিয়ে অগ্রগতি দেখানো হয়।
+- **একটা নিরীহ warning:** MPR বন্ধ করার সময় console-এ একবার "For crosshairs to operate, at least two viewports must be given" দেখা যায়, কারণ viewport-গুলো একটা একটা করে বন্ধ হয়। এতে কিছু ভাঙে না।
+
+### পরের ধাপের সম্ভাব্য কাজ
+
+- [ ] 3D volume rendering (`VOLUME_3D` viewport)
 - [ ] আরও hanging protocol নিয়ম (যেমন আগের আর এখনকার স্টাডি পাশাপাশি তুলনা)
+- [ ] অনেক বড় স্টাডিতে (৫০০+ slice) মেমোরি সীমা: cache-এর আকার বেঁধে দেওয়া, আর volume তৈরির আগে সতর্কবার্তা দেখানো
 
 ### ধাপ ২
 

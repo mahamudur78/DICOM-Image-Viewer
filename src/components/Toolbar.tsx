@@ -1,3 +1,4 @@
+import type { SlabMode } from '../cornerstone/mpr'
 import type { PrimaryTool } from '../cornerstone/tools'
 import {
   CT_PRESETS,
@@ -22,10 +23,26 @@ interface ToolbarProps {
   onLayoutChange: (layout: Layout) => void
   links: LinkSettings
   onToggleLink: (key: keyof LinkSettings) => void
+  mprActive: boolean
+  onToggleMpr: () => void
+  slab: Slab
+  onSlabChange: (slab: Slab) => void
   showTags: boolean
   onToggleTags: () => void
   onFiles: (files: File[]) => void
 }
+
+export interface Slab {
+  mode: SlabMode
+  thickness: number
+}
+
+const SLAB_THICKNESSES = [0, 5, 10, 20, 40]
+const SLAB_MODES: { mode: SlabMode; label: string }[] = [
+  { mode: 'mip', label: 'MIP' },
+  { mode: 'minip', label: 'MinIP' },
+  { mode: 'avg', label: 'Average' },
+]
 
 function IconButton({
   label,
@@ -78,6 +95,10 @@ export function Toolbar({
   onLayoutChange,
   links,
   onToggleLink,
+  mprActive,
+  onToggleMpr,
+  slab,
+  onSlabChange,
   showTags,
   onToggleTags,
   onFiles,
@@ -89,7 +110,7 @@ export function Toolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5">
-      {TOOL_BUTTONS.map(({ tool, label, icon, key }) => (
+      {TOOL_BUTTONS.filter((button) => mprActive || !button.mprOnly).map(({ tool, label, icon, key }) => (
         <IconButton key={tool} label={`${label} (${key})`} active={activeTool === tool} onClick={() => onToolChange(tool)}>
           {icon}
         </IconButton>
@@ -137,24 +158,60 @@ export function Toolbar({
 
       <div className="mx-1 h-6 w-px bg-slate-700" />
 
-      {LAYOUTS.map((option) => (
-        <IconButton
-          key={`${option.rows}x${option.cols}`}
-          label={`Layout ${option.rows}×${option.cols}`}
-          active={option.rows === layout.rows && option.cols === layout.cols}
-          onClick={() => onLayoutChange(option)}
-        >
-          <LayoutIcon {...option} />
-        </IconButton>
-      ))}
+      <IconButton label="MPR: axial, sagittal and coronal views" active={mprActive} onClick={onToggleMpr}>
+        <span className="text-[10px] font-semibold tracking-wide">MPR</span>
+      </IconButton>
 
-      <div className="mx-1 h-6 w-px bg-slate-700" />
+      {mprActive ? (
+        <>
+          <select
+            aria-label="Slab thickness"
+            value={slab.thickness}
+            onChange={(event) => onSlabChange({ ...slab, thickness: Number(event.target.value) })}
+            className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200"
+          >
+            {SLAB_THICKNESSES.map((mm) => (
+              <option key={mm} value={mm}>
+                {mm === 0 ? 'Slab: off' : `Slab ${mm} mm`}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Slab projection"
+            value={slab.mode}
+            disabled={slab.thickness === 0}
+            onChange={(event) => onSlabChange({ ...slab, mode: event.target.value as SlabMode })}
+            className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200 disabled:opacity-40"
+          >
+            {SLAB_MODES.map(({ mode, label }) => (
+              <option key={mode} value={mode}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : (
+        <>
+          {LAYOUTS.map((option) => (
+            <IconButton
+              key={`${option.rows}x${option.cols}`}
+              label={`Layout ${option.rows}×${option.cols}`}
+              active={option.rows === layout.rows && option.cols === layout.cols}
+              onClick={() => onLayoutChange(option)}
+            >
+              <LayoutIcon {...option} />
+            </IconButton>
+          ))}
 
-      {LINK_BUTTONS.map(({ key, label, short }) => (
-        <IconButton key={key} label={label} active={links[key]} onClick={() => onToggleLink(key)}>
-          <span className="text-[10px] font-semibold tracking-wide">{short}</span>
-        </IconButton>
-      ))}
+          <div className="mx-1 h-6 w-px bg-slate-700" />
+
+          {LINK_BUTTONS.map(({ key, label, short }) => (
+            <IconButton key={key} label={label} active={links[key]} onClick={() => onToggleLink(key)}>
+              <span className="text-[10px] font-semibold tracking-wide">{short}</span>
+            </IconButton>
+          ))}
+        </>
+      )}
 
       <div className="mx-1 h-6 w-px bg-slate-700" />
 

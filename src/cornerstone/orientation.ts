@@ -15,7 +15,7 @@ export interface OrientationMarkers {
  * camera so they follow rotation and flips. Only the dominant direction is
  * kept for oblique planes, matching what most viewers show.
  */
-export function getOrientationMarkers(viewport: Types.IStackViewport): OrientationMarkers | null {
+export function getOrientationMarkers(viewport: { getCamera(): Types.ICamera }): OrientationMarkers | null {
   const { viewUp, viewPlaneNormal } = viewport.getCamera()
   if (!viewUp || !viewPlaneNormal) return null
 

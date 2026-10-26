@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { defaultLayoutFor, type Layout } from './components/layouts'
+import { MprView } from './components/MprView'
 import { Sidebar } from './components/Sidebar'
 import { TagPanel } from './components/TagPanel'
-import { Toolbar } from './components/Toolbar'
+import { Toolbar, type Slab } from './components/Toolbar'
 import { TOOL_SHORTCUTS, type LinkSettings } from './components/toolButtons'
 import { ViewportGrid } from './components/ViewportGrid'
 import { Welcome } from './components/Welcome'
 import { initCornerstone } from './cornerstone/init'
+import { MPR_VIEWPORTS, mprUnsupportedReason, setSlab } from './cornerstone/mpr'
 import { setSliceSync, setVoiSync } from './cornerstone/sync'
 import { setPrimaryTool, setReferenceLines, type PrimaryTool } from './cornerstone/tools'
 import {
@@ -39,10 +41,15 @@ export default function App() {
   const [showTags, setShowTags] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [links, setLinks] = useState<LinkSettings>({ referenceLines: true, sliceSync: false, voiSync: false })
+  const [mpr, setMpr] = useState<DisplaySet | null>(null)
+  const [mprViewportId, setMprViewportId] = useState<string>(MPR_VIEWPORTS[0].id)
+  const [slab, setSlabState] = useState<Slab>({ mode: 'mip', thickness: 0 })
 
   const hasStudies = studies.length > 0
   const activeDisplaySet = cells[activeCell]
   const activeViewportId = activeDisplaySet ? viewportIdAt(activeCell) : null
+  /** Viewport that toolbar actions and keyboard shortcuts apply to. */
+  const targetViewportId = mpr ? mprViewportId : activeViewportId
 
   useEffect(() => {
     initCornerstone()
@@ -58,9 +65,13 @@ export default function App() {
   // viewports may have (re)mounted: new series, layout or maximize changes.
   useEffect(() => {
     if (!ready) return
-    const source = setActiveSource(activeViewportId) ?? null
+    const source = mpr ? null : (setActiveSource(activeViewportId) ?? null)
     setReferenceLines(links.referenceLines ? source : null)
-  }, [ready, links.referenceLines, activeViewportId, cells, layout, maximizedCell])
+  }, [ready, mpr, links.referenceLines, activeViewportId, cells, layout, maximizedCell])
+
+  useEffect(() => {
+    if (mpr) setSlab(slab.mode, slab.thickness)
+  }, [mpr, slab])
 
   useEffect(() => {
     if (!ready) return
@@ -72,6 +83,7 @@ export default function App() {
     if (files.length === 0) return
     // Unmount every viewport before releasing the images they display.
     setCells(EMPTY_CELLS)
+    setMpr(null)
     setStudies([])
     setMessage(null)
     setProgress({ done: 0, total: files.length })
@@ -102,6 +114,22 @@ export default function App() {
     setActiveCell(cell)
   }
 
+  /** Opens MPR for a series, or explains why it cannot be reconstructed. */
+  const openMpr = (displaySet: DisplaySet | null) => {
+    if (!displaySet) return setMessage('Select a series first.')
+    const reason = mprUnsupportedReason(displaySet.series)
+    if (reason) return setMessage(`MPR is not available for this series. ${reason}`)
+    setMessage(null)
+    setSlabState((current) => ({ ...current, thickness: 0 }))
+    setMpr(displaySet)
+    setActiveTool('crosshairs')
+  }
+
+  const closeMpr = () => {
+    setMpr(null)
+    setActiveTool((tool) => (tool === 'crosshairs' ? 'windowLevel' : tool))
+  }
+
   const handleDropSeries = (cell: number, seriesUID: string) => {
     for (const study of studies) {
       const series = study.series.find((s) => s.seriesInstanceUID === seriesUID)
@@ -126,17 +154,17 @@ export default function App() {
       const key = event.key.toLowerCase()
       if (TOOL_SHORTCUTS[key]) setActiveTool(TOOL_SHORTCUTS[key])
       else if (key === 't') setShowTags((value) => !value)
-      else if (!activeViewportId) return
-      else if (key === 'arrowup' || key === 'arrowleft') scrollImages(activeViewportId, -1)
-      else if (key === 'arrowdown' || key === 'arrowright') scrollImages(activeViewportId, 1)
-      else if (key === 'r') resetView(activeViewportId)
-      else if (key === 'i') toggleInvert(activeViewportId)
+      else if (!targetViewportId) return
+      else if (key === 'arrowup' || key === 'arrowleft') scrollImages(targetViewportId, -1)
+      else if (key === 'arrowdown' || key === 'arrowright') scrollImages(targetViewportId, 1)
+      else if (key === 'r') resetView(targetViewportId)
+      else if (key === 'i') toggleInvert(targetViewportId)
       else return
       event.preventDefault()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [hasStudies, activeViewportId])
+  }, [hasStudies, targetViewportId])
 
   const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault()
@@ -145,7 +173,9 @@ export default function App() {
     await handleFiles(await collectDroppedFiles(event.dataTransfer))
   }
 
-  const currentFile = activeDisplaySet?.series.images[cellIndexes[activeCell]]?.file ?? activeDisplaySet?.series.images[0]?.file
+  const currentFile = mpr
+    ? mpr.series.images[Math.floor(mpr.series.images.length / 2)]?.file
+    : (activeDisplaySet?.series.images[cellIndexes[activeCell]]?.file ?? activeDisplaySet?.series.images[0]?.file)
 
   return (
     <div
@@ -173,12 +203,16 @@ export default function App() {
         <Toolbar
           activeTool={activeTool}
           onToolChange={setActiveTool}
-          viewportId={activeViewportId}
-          modality={activeDisplaySet?.series.modality ?? ''}
+          viewportId={targetViewportId}
+          modality={(mpr ?? activeDisplaySet)?.series.modality ?? ''}
           layout={layout}
           onLayoutChange={handleLayoutChange}
           links={links}
           onToggleLink={(key) => setLinks((current) => ({ ...current, [key]: !current[key] }))}
+          mprActive={!!mpr}
+          onToggleMpr={() => (mpr ? closeMpr() : openMpr(activeDisplaySet))}
+          slab={slab}
+          onSlabChange={setSlabState}
           showTags={showTags}
           onToggleTags={() => setShowTags((value) => !value)}
           onFiles={handleFiles}
@@ -200,23 +234,34 @@ export default function App() {
             <div className="shrink-0 lg:w-44">
               <Sidebar
                 studies={studies}
-                cells={cells}
-                activeCell={activeCell}
-                onSelect={(study, series) => showInCell(activeCell, { study, series })}
+                cells={mpr ? [mpr] : cells}
+                activeCell={mpr ? 0 : activeCell}
+                onSelect={(study, series) =>
+                  mpr ? openMpr({ study, series }) : showInCell(activeCell, { study, series })
+                }
               />
             </div>
             <div className="min-h-0 min-w-0 flex-1">
-              <ViewportGrid
-                layout={layout}
-                cells={cells}
-                activeCell={activeCell}
-                maximizedCell={maximizedCell}
-                onActivate={setActiveCell}
-                onToggleMaximize={(cell) => setMaximizedCell((current) => (current === cell ? null : cell))}
-                onDropSeries={handleDropSeries}
-                onIndexChange={handleIndexChange}
-                onError={setMessage}
-              />
+              {mpr ? (
+                <MprView
+                  displaySet={mpr}
+                  activeViewportId={mprViewportId}
+                  onActivate={setMprViewportId}
+                  onError={setMessage}
+                />
+              ) : (
+                <ViewportGrid
+                  layout={layout}
+                  cells={cells}
+                  activeCell={activeCell}
+                  maximizedCell={maximizedCell}
+                  onActivate={setActiveCell}
+                  onToggleMaximize={(cell) => setMaximizedCell((current) => (current === cell ? null : cell))}
+                  onDropSeries={handleDropSeries}
+                  onIndexChange={handleIndexChange}
+                  onError={setMessage}
+                />
+              )}
             </div>
             {showTags && currentFile && (
               <div className="absolute inset-0 z-20 lg:static lg:inset-auto">

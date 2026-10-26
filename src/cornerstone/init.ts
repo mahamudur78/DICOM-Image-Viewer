@@ -2,6 +2,7 @@ import { init as coreInit } from '@cornerstonejs/core'
 import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader'
 import {
   AngleTool,
+  CrosshairsTool,
   EllipticalROITool,
   LengthTool,
   MagnifyTool,
@@ -15,8 +16,9 @@ import {
   init as toolsInit,
 } from '@cornerstonejs/tools'
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
+import { registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
-import { createToolGroup } from './tools'
+import { createToolGroups } from './tools'
 import { createRenderingEngine } from './viewer'
 
 let initPromise: Promise<void> | null = null
@@ -49,10 +51,12 @@ export function initCornerstone(): Promise<void> {
       EllipticalROITool,
       ProbeTool,
       ReferenceLinesTool,
+      CrosshairsTool,
     ]) {
       addTool(tool)
     }
-    createToolGroup()
+    createToolGroups()
+    registerVolumeLoaders()
     createSynchronizers()
   })()
   return initPromise

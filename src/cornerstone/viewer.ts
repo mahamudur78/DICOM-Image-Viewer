@@ -28,6 +28,10 @@ export function createRenderingEngine() {
   return getRenderingEngine(RENDERING_ENGINE_ID) ?? new RenderingEngine(RENDERING_ENGINE_ID)
 }
 
+/**
+ * The view actions below also work on the MPR (volume) viewports, which share
+ * these methods; the stack type is used because it is the common case.
+ */
 export function getViewport(viewportId: string): Types.IStackViewport | undefined {
   return getRenderingEngine(RENDERING_ENGINE_ID)?.getViewport(viewportId) as Types.IStackViewport | undefined
 }
@@ -56,7 +60,10 @@ export function mountViewport(viewportId: string, element: HTMLDivElement) {
 export function setActiveSource(sourceViewportId: string | null) {
   const engine = getRenderingEngine(RENDERING_ENGINE_ID)
   if (!engine) return
-  const mounted = engine.getViewports().map((viewport) => viewport.id)
+  const mounted = engine
+    .getViewports()
+    .filter((viewport) => viewport.type === Enums.ViewportType.STACK)
+    .map((viewport) => viewport.id)
   const source = sourceViewportId && mounted.includes(sourceViewportId) ? sourceViewportId : null
   setSyncSource(RENDERING_ENGINE_ID, mounted, source)
   return source
