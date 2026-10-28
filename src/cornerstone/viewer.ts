@@ -145,12 +145,27 @@ export function resetView(viewportId: string) {
 }
 
 /** Downloads the current image (without measurement overlays) as PNG. */
-export function downloadPng(viewportId: string, fileName: string) {
+/**
+ * Downloads the current image (without measurement overlays) as PNG. A CSS
+ * filter (the viewport's image filter) is applied to the export too; browsers
+ * without canvas filters (Safari) export the unfiltered image.
+ */
+export function downloadPng(viewportId: string, fileName: string, cssFilter = '') {
   const viewport = getViewport(viewportId)
   if (!viewport) return
   viewport.render()
+  let canvas = viewport.getCanvas()
+  if (cssFilter) {
+    const filtered = document.createElement('canvas')
+    filtered.width = canvas.width
+    filtered.height = canvas.height
+    const context = filtered.getContext('2d')!
+    context.filter = cssFilter
+    context.drawImage(canvas, 0, 0)
+    canvas = filtered
+  }
   const link = document.createElement('a')
-  link.href = viewport.getCanvas().toDataURL('image/png')
+  link.href = canvas.toDataURL('image/png')
   link.download = fileName
   link.click()
 }

@@ -1,13 +1,18 @@
 import { useEffect } from 'react'
 import { useViewportRegistry } from '../cornerstone/viewportRegistry'
 import { useSettings } from '../store/settingsStore'
+import { useViewportDisplay } from '../store/viewportDisplayStore'
 import { useViewer } from '../store/viewerStore'
 import { commandContext, commandForKey, isEnabled, type CommandContext } from './commands'
 
 /** Command context that re-renders the caller whenever it may have changed. */
 export function useCommandContext(): CommandContext {
   useViewer()
+  // Commands read settings (links, display toggles, window presets) and the viewport filters.
   useSettings((s) => s.links)
+  useSettings((s) => s.display)
+  useSettings((s) => s.presets)
+  useViewportDisplay((s) => s.filters)
   useViewportRegistry((s) => s.kinds)
   return commandContext()
 }

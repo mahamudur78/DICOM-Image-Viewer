@@ -11,10 +11,12 @@ import {
   volumeMemoryBudget,
 } from '../cornerstone/mpr'
 import { setSliceSync, setVoiSync } from '../cornerstone/sync'
-import { DEFAULT_TOOL, setPrimaryTool, setReferenceLines, type ViewMode } from '../cornerstone/tools'
+import { DEFAULT_TOOL, setPrimaryTool, setReferenceLines, setScaleBar, type ViewMode } from '../cornerstone/tools'
 import { forgetRememberedIndexes, rememberIndex, resetView, setActiveSource } from '../cornerstone/viewer'
 import { viewportKind } from '../cornerstone/viewportRegistry'
 import { resetVr } from '../cornerstone/volume3d'
+import { applyModalityDefaults } from '../cornerstone/display'
+import { setFilter } from './viewportDisplayStore'
 import { hangingOrder } from '../dicom/hangingProtocol'
 import type { SourceFile } from '../dicom/collectFiles'
 import { loadFiles, releaseLoadedImages } from '../dicom/loadFiles'
@@ -23,11 +25,13 @@ import type { DisplaySet, Series, Study } from '../dicom/types'
 import { t } from '../i18n'
 import { notify } from '../notifications/toastStore'
 import { clearDocumentThumbnails } from '../thumbnails/documentThumbnails'
+import { clearOverlayBitmaps } from '../cornerstone/overlayPlanes'
 import { useSettings } from './settingsStore'
 import {
   beginLoading,
   closeVolumeView,
   selectActiveDisplaySet,
+  selectCurrentDisplaySet,
   selectMode,
   selectTargetViewportId,
   setLayout,
@@ -47,6 +51,7 @@ export async function openFiles(files: SourceFile[]) {
   await new Promise((resolve) => setTimeout(resolve)) // let React commit the unmount
   releaseLoadedImages()
   clearDocumentThumbnails()
+  clearOverlayBitmaps()
   forgetRememberedIndexes()
 
   const result = await loadFiles(files, { onProgress: setLoadingProgress, askPassword })
@@ -97,13 +102,19 @@ export function selectSeries(study: Study, series: Series) {
   else showInCell(activeCell, { study, series })
 }
 
-/** Resets the target viewport: camera and window for 2D, camera and preset for 3D. */
+/**
+ * Resets the target viewport: camera and preset for 3D; for 2D the camera,
+ * window, colormap and image filter, then the modality's defaults (PET).
+ */
 export function resetTargetViewport() {
   const state = useViewer.getState()
   const viewportId = selectTargetViewportId(state)
   if (!viewportId) return
-  if (viewportKind(viewportId) === 'volume3d') resetVr(viewportId, state.preset)
-  else resetView(viewportId)
+  if (viewportKind(viewportId) === 'volume3d') return resetVr(viewportId, state.preset)
+  resetView(viewportId)
+  setFilter(viewportId, null)
+  const modality = selectCurrentDisplaySet(state)?.series.modality
+  if (modality) applyModalityDefaults(viewportId, modality)
 }
 
 /** Applies store changes to Cornerstone. Mount once, in App. */
@@ -117,6 +128,7 @@ export function useCornerstoneBridge() {
   const maximizedCell = useViewer((s) => s.maximizedCell)
   const activeViewportId = useViewer((s) => (s.cells[s.activeCell] ? viewportIdAt(s.activeCell) : null))
   const links = useSettings((s) => s.links)
+  const scaleBar = useSettings((s) => s.display.scaleBar)
 
   useEffect(() => {
     if (ready) setPrimaryTool(activeTool, mode)
@@ -133,6 +145,11 @@ export function useCornerstoneBridge() {
   useEffect(() => {
     if (mode === 'mpr') applySlab(slab.mode, slab.thickness)
   }, [mode, slab])
+
+  // Viewports that mount later join the tool group with the tool already enabled.
+  useEffect(() => {
+    if (ready) setScaleBar(scaleBar)
+  }, [ready, scaleBar])
 
   useEffect(() => {
     if (!ready) return

@@ -10,6 +10,7 @@ import {
   PanTool,
   ProbeTool,
   ReferenceLinesTool,
+  ScaleOverlayTool,
   StackScrollTool,
   TrackballRotateTool,
   WindowLevelTool,
@@ -20,6 +21,7 @@ import {
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
 import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
+import { RegionWindowTool } from './regionWindowTool'
 import { createToolGroups } from './tools'
 import { createRenderingEngine } from './viewer'
 import { VolumeShiftTool } from './volume3d'
@@ -46,6 +48,8 @@ export function initCornerstone(): Promise<void> {
 
     for (const tool of [
       WindowLevelTool,
+      RegionWindowTool,
+      ScaleOverlayTool,
       PanTool,
       ZoomTool,
       MagnifyTool,

@@ -1,6 +1,7 @@
 import { Enums } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { applyModalityDefaults } from '../cornerstone/display'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import {
   getViewport,
@@ -13,10 +14,14 @@ import {
 } from '../cornerstone/viewer'
 import type { DisplaySet } from '../dicom/types'
 import { notify } from '../notifications/toastStore'
+import { useSettings } from '../store/settingsStore'
+import { filterElementId, useViewportDisplay } from '../store/viewportDisplayStore'
 import { CineControls } from './CineControls'
+import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useCinePlayback } from './useCinePlayback'
 import { ImageScrollbar } from './ImageScrollbar'
+import { formatPixelValue, usePixelValue } from './usePixelValue'
 
 interface ViewportProps {
   viewportId: string
@@ -34,6 +39,8 @@ interface OverlayState {
   zoom: number
   size: string
   markers: OrientationMarkers | null
+  /** Unit of PET values: SUVbw once the loader has scaled them, else the stored unit. */
+  unit: string
 }
 
 const INITIAL_OVERLAY: OverlayState = {
@@ -43,6 +50,7 @@ const INITIAL_OVERLAY: OverlayState = {
   zoom: 1,
   size: '',
   markers: null,
+  unit: '',
 }
 
 export function Viewport({
@@ -56,7 +64,11 @@ export function Viewport({
   const { t } = useTranslation()
   const contextMenu = useContextMenuTrigger()
   const { study, series } = displaySet
-  const elementRef = useRef<HTMLDivElement>(null)
+  const elementRef = useRef<HTMLDivElement | null>(null)
+  const [element, setElement] = useState<HTMLDivElement | null>(null)
+  const display = useSettings((s) => s.display)
+  const filter = useViewportDisplay((s) => s.filters[viewportId])
+  const reading = usePixelValue(viewportId, element, display.pixelValue && display.overlayText)
   const onIndexChangeRef = useRef(onIndexChange)
   const seriesRef = useRef(series)
   const [overlay, setOverlay] = useState<OverlayState>(INITIAL_OVERLAY)
@@ -89,6 +101,7 @@ export function Viewport({
         zoom: viewport.getZoom(),
         size: image ? `${image.columns} × ${image.rows}` : '',
         markers: seriesRef.current.hasOrientation ? getOrientationMarkers(viewport) : null,
+        unit: petUnit(image),
       })
     }
     const events = [Enums.Events.STACK_NEW_IMAGE, Enums.Events.VOI_MODIFIED, Enums.Events.CAMERA_MODIFIED]
@@ -111,6 +124,7 @@ export function Viewport({
       series.id,
       series.images.map((image) => image.imageId),
     )
+      .then(() => !cancelled && applyModalityDefaults(viewportId, series.modality))
       .catch((error: unknown) => {
         if (!cancelled) notify(t('messages.displayFailed', { error: describeError(error) }), 'error')
       })
@@ -122,7 +136,14 @@ export function Viewport({
     }
   }, [viewportId, series, t])
 
+  // Image filters are CSS filters on the Cornerstone canvas (annotations stay sharp).
+  useEffect(() => {
+    const canvas = element?.querySelector('canvas')
+    if (canvas) canvas.style.filter = filter ? `url(#${filterElementId(filter)})` : ''
+  }, [element, filter])
+
   const { markers } = overlay
+  const unit = series.modality === 'CT' ? 'HU' : series.modality === 'PT' ? overlay.unit : ''
 
   return (
     <div
@@ -139,33 +160,66 @@ export function Viewport({
       onDoubleClick={onToggleMaximize}
       onContextMenu={contextMenu.onContextMenu}
     >
-      <div ref={elementRef} className="absolute inset-0" />
+      <div
+        ref={(node) => {
+          elementRef.current = node
+          setElement(node)
+        }}
+        className="absolute inset-0"
+      />
+      {display.dicomOverlays && <DicomOverlayLayer viewportId={viewportId} element={element} />}
 
-      <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
+      {display.overlayText && (
+      <div data-testid="overlay-text" className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         {/* Small cells (e.g. 2×2 on a phone) show only the essentials. */}
         <div className="absolute left-2 top-2 max-w-[40%]">
-          <div className="truncate font-semibold">{study.patientName || t('viewport.anonymous')}</div>
-          {study.patientId && <div className="truncate @max-xs:hidden">{study.patientId}</div>}
-          {overlay.size && <div className="@max-xs:hidden">{overlay.size}</div>}
+          {display.cornerPatient &&
+            (display.privacy ? (
+              <div className="font-semibold text-slate-400">{t('viewport.hiddenPatient')}</div>
+            ) : (
+              <>
+                <div className="truncate font-semibold">{study.patientName || t('viewport.anonymous')}</div>
+                {study.patientId && <div className="truncate @max-xs:hidden">{study.patientId}</div>}
+              </>
+            ))}
+          {display.cornerImageSize && overlay.size && <div className="@max-xs:hidden">{overlay.size}</div>}
         </div>
         <div className="absolute right-5 top-2 max-w-[40%] text-right @max-xs:hidden">
-          <div className="truncate">{study.studyDate}</div>
-          <div>
-            {series.modality} · #{series.seriesNumber}
-          </div>
-          {series.description && <div className="truncate">{series.description}</div>}
-        </div>
-        <div className="absolute bottom-2 left-2">
-          <div>{t('viewport.zoom', { zoom: overlay.zoom.toFixed(2) })}</div>
-          {overlay.windowWidth !== null && (
-            <div>{t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter })}</div>
+          {display.cornerStudy && (
+            <>
+              <div className="truncate">{study.studyDate}</div>
+              <div>
+                {series.modality} · #{series.seriesNumber}
+              </div>
+              {series.description && <div className="truncate">{series.description}</div>}
+            </>
+          )}
+          {series.suvError && (
+            <div className="text-amber-300" title={series.suvError}>
+              {t('viewport.suvUnavailable')}
+            </div>
           )}
         </div>
-        <div className="absolute bottom-2 right-5 text-right">
-          {overlay.index + 1} / {count}
+        {/* Narrow enough to stay clear of the cine controls in the middle; long values wrap. */}
+        <div className="absolute bottom-2 left-2 max-w-[calc(50%-6rem)] break-words">
+          {display.cornerZoom && <div>{t('viewport.zoom', { zoom: overlay.zoom.toFixed(2) })}</div>}
+          {display.cornerWindow && overlay.windowWidth !== null && (
+            <div>{t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter })}</div>
+          )}
+          {reading && (
+            <div data-testid="pixel-value" className="@max-xs:hidden">
+              {formatPixelValue(reading, unit)}
+            </div>
+          )}
+          {filter && <div className="text-sky-300 @max-xs:hidden">{t(`filters.${filter.type}`)}</div>}
         </div>
+        {display.cornerSlice && (
+          <div className="absolute bottom-2 right-5 text-right">
+            {overlay.index + 1} / {count}
+          </div>
+        )}
 
-        {markers && (
+        {display.orientationMarkers && markers && (
           <div className="text-sm font-semibold text-amber-200/90">
             <span className="absolute left-1/2 top-2 -translate-x-1/2">{markers.top}</span>
             <span className={`absolute left-1/2 -translate-x-1/2 ${count > 1 ? 'bottom-11 @max-xs:bottom-16' : 'bottom-2 @max-xs:bottom-10'}`}>
@@ -176,6 +230,7 @@ export function Viewport({
           </div>
         )}
       </div>
+      )}
 
       {count > 1 && <CineControls viewportId={viewportId} series={series} />}
 
@@ -196,4 +251,10 @@ function describeError(error: unknown) {
   if (error instanceof Error) return error.message
   if (typeof error === 'object' && error && 'error' in error) return String((error as { error: unknown }).error)
   return String(error)
+}
+
+/** SUVbw when the loader scaled a PET image to SUV, else Bq/ml (the usual stored unit). */
+function petUnit(image: unknown) {
+  const preScale = (image as { preScale?: { scaled?: boolean; scalingParameters?: { suvbw?: number } } } | undefined)?.preScale
+  return preScale?.scaled && preScale.scalingParameters?.suvbw ? 'SUVbw' : 'Bq/ml'
 }

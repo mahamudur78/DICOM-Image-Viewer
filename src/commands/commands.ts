@@ -4,16 +4,48 @@ import { LAYOUTS } from '../components/layouts'
 import type { SortMode } from '../dicom/types'
 import { viewportIdAt } from '../cornerstone/constants'
 import { toolsForMode, type PrimaryTool, type ViewMode } from '../cornerstone/tools'
-import { downloadPng, flip, rotate90, scrollImages, toggleInvert } from '../cornerstone/viewer'
+import {
+  COLORMAPS,
+  applyVoiLut,
+  applyWindow,
+  autoWindow,
+  fullRange,
+  getColormapName,
+  getRotation,
+  getSigmoid,
+  getSmoothPixels,
+  headerWindows,
+  isColorImage,
+  pixelSpacingMm,
+  rotateBy,
+  setColormap,
+  setRotation,
+  setSigmoid,
+  setSmoothPixels,
+  voiLutOf,
+  zoomToFit,
+  zoomToScale,
+  zoomToTrueSize,
+} from '../cornerstone/display'
+import { downloadPng, flip, getViewport, rotate90, scrollImages, setImageIndex, toggleInvert } from '../cornerstone/viewer'
+import { windowOptions, type WindowOption } from '../dicom/windowPresets'
+import { askForm, managePresets } from '../dialogs/dialogStore'
+import { toggleFullscreen, fullscreenSupported, isFullscreen } from '../app/fullscreen'
+import { FILTERS, filterElementId, getFilter, setFilter, type FilterStrength } from '../store/viewportDisplayStore'
+import { notify } from '../notifications/toastStore'
+import { t } from '../i18n'
 import { is2dKind, isCornerstoneKind, viewportKind, type ViewportKind } from '../cornerstone/viewportRegistry'
 import { changeCineFps, cineStateFor, setCinePlaying, toggleCine } from '../store/cineStore'
-import { useSettings, type LinkSettings } from '../store/settingsStore'
+import { useSettings, type DisplaySettings, type LinkSettings } from '../store/settingsStore'
 import { changeMode, resetTargetViewport } from '../store/viewerActions'
 import { videoControllers } from '../video/videoControllers'
+import { DEFAULT_KEYMAP } from './keymap'
 import {
   selectMode,
   selectTargetViewportId,
+  selectCurrentDisplaySet,
   setActiveTool,
+  setDistractionFree,
   setLayout,
   setSeriesSort,
   togglePanel,
@@ -31,7 +63,22 @@ export interface CommandContext {
   links: LinkSettings
 }
 
-export type CommandGroup = 'tool' | 'view' | 'cine' | 'sort' | 'mode' | 'layout' | 'link' | 'panel'
+export type CommandGroup =
+  | 'tool'
+  | 'view'
+  | 'rotate'
+  | 'zoom'
+  | 'window'
+  | 'image'
+  | 'colormap'
+  | 'filter'
+  | 'display'
+  | 'cine'
+  | 'sort'
+  | 'mode'
+  | 'layout'
+  | 'link'
+  | 'panel'
 
 export interface Command {
   id: string
@@ -70,26 +117,26 @@ const onViewport = (action: (viewportId: string) => void) => (ctx: CommandContex
   if (ctx.viewportId) action(ctx.viewportId)
 }
 
-const TOOLS: { tool: PrimaryTool; icon: string; key: string }[] = [
-  { tool: 'windowLevel', icon: '◐', key: 'w' },
-  { tool: 'rotate', icon: '⟳', key: 'o' },
-  { tool: 'shift', icon: '☀', key: 's' },
-  { tool: 'pan', icon: '✥', key: 'p' },
-  { tool: 'zoom', icon: '🔍', key: 'z' },
-  { tool: 'magnify', icon: '⊕', key: 'm' },
-  { tool: 'crosshairs', icon: '✛', key: 'c' },
-  { tool: 'length', icon: '📏', key: 'l' },
-  { tool: 'angle', icon: '∠', key: 'a' },
-  { tool: 'ellipse', icon: '◯', key: 'e' },
-  { tool: 'probe', icon: '⌖', key: 'b' },
+const TOOLS: { tool: PrimaryTool; icon: string }[] = [
+  { tool: 'windowLevel', icon: '◐' },
+  { tool: 'windowRegion', icon: '▣' },
+  { tool: 'rotate', icon: '⟳' },
+  { tool: 'shift', icon: '☀' },
+  { tool: 'pan', icon: '✥' },
+  { tool: 'zoom', icon: '🔍' },
+  { tool: 'magnify', icon: '⊕' },
+  { tool: 'crosshairs', icon: '✛' },
+  { tool: 'length', icon: '📏' },
+  { tool: 'angle', icon: '∠' },
+  { tool: 'ellipse', icon: '◯' },
+  { tool: 'probe', icon: '⌖' },
 ]
 
-const toolCommands: Command[] = TOOLS.map(({ tool, icon, key }) => ({
+const toolCommands: Command[] = TOOLS.map(({ tool, icon }) => ({
   id: `tool.${tool}`,
   group: 'tool',
   label: `tools.${tool}`,
   icon,
-  keys: [key],
   isAvailable: (ctx) => isCornerstone(ctx) && toolsForMode(ctx.mode).includes(tool),
   isActive: (ctx) => ctx.state.activeTool === tool,
   run: () => setActiveTool(tool),
@@ -101,7 +148,6 @@ const viewCommands: Command[] = [
     group: 'view',
     label: 'commands.invert',
     icon: '◑',
-    keys: ['i'],
     isAvailable: is2d,
     isEnabled: hasViewport,
     run: onViewport(toggleInvert),
@@ -109,7 +155,7 @@ const viewCommands: Command[] = [
   {
     id: 'view.rotate90',
     group: 'view',
-    label: 'commands.rotate90',
+    label: 'commands.rotateRight',
     icon: '↻',
     isAvailable: is2d,
     isEnabled: hasViewport,
@@ -138,7 +184,6 @@ const viewCommands: Command[] = [
     group: 'view',
     label: 'commands.reset',
     icon: '⟲',
-    keys: ['r'],
     isAvailable: isCornerstone,
     isEnabled: hasViewport,
     run: () => resetTargetViewport(),
@@ -147,7 +192,6 @@ const viewCommands: Command[] = [
     id: 'view.previousImage',
     group: 'view',
     label: 'commands.previousImage',
-    keys: ['arrowup', 'arrowleft'],
     isAvailable: is2d,
     isEnabled: hasViewport,
     run: onViewport((id) => scrollImages(id, -1)),
@@ -156,10 +200,25 @@ const viewCommands: Command[] = [
     id: 'view.nextImage',
     group: 'view',
     label: 'commands.nextImage',
-    keys: ['arrowdown', 'arrowright'],
     isAvailable: is2d,
     isEnabled: hasViewport,
     run: onViewport((id) => scrollImages(id, 1)),
+  },
+  {
+    id: 'view.firstImage',
+    group: 'view',
+    label: 'commands.firstImage',
+    isAvailable: is2d,
+    isEnabled: hasViewport,
+    run: onViewport((id) => void setImageIndex(id, 0)),
+  },
+  {
+    id: 'view.lastImage',
+    group: 'view',
+    label: 'commands.lastImage',
+    isAvailable: is2d,
+    isEnabled: hasViewport,
+    run: onViewport((id) => void setImageIndex(id, Number.MAX_SAFE_INTEGER)),
   },
   {
     id: 'view.downloadPng',
@@ -168,7 +227,258 @@ const viewCommands: Command[] = [
     icon: '⤓',
     isAvailable: isCornerstone,
     isEnabled: hasViewport,
-    run: onViewport((id) => downloadPng(id, 'dicom-image.png')),
+    run: onViewport((id) => {
+      const filter = getFilter(id)
+      downloadPng(id, 'dicom-image.png', filter ? `url(#${filterElementId(filter)})` : '')
+    }),
+  },
+]
+
+// --- rotation, zoom, window, image, colormap, filter, display --------------------
+
+/** A 2D image viewport (stack or MPR) that is mounted. */
+const is2dViewport = (ctx: CommandContext) => is2dKind(ctx.kind) && ctx.viewportId !== null
+/** Grayscale images only: colormaps and window presets do not apply to colour images. */
+const isGrayscale = (ctx: CommandContext) => is2dViewport(ctx) && !isColorImage(ctx.viewportId!)
+
+const rotateCommands: Command[] = [
+  { id: 'rotate.left', group: 'rotate', label: 'commands.rotateLeft', icon: '↺', isAvailable: is2d, isEnabled: hasViewport, run: onViewport((id) => rotateBy(id, -90)) },
+  { id: 'rotate.180', group: 'rotate', label: 'commands.rotate180', icon: '⟳', isAvailable: is2d, isEnabled: hasViewport, run: onViewport((id) => rotateBy(id, 180)) },
+  {
+    id: 'rotate.angle',
+    group: 'rotate',
+    label: 'commands.rotateAngle',
+    icon: '∡',
+    isAvailable: is2d,
+    isEnabled: hasViewport,
+    run: onViewport(async (id) => {
+      const values = await askForm(
+        'commands.rotateAngle',
+        [{ name: 'angle', label: 'dialogs.angle', type: 'number', value: String(Math.round(getRotation(id))), min: -360, max: 360 }],
+        'dialogs.apply',
+      )
+      if (values) setRotation(id, Number(values.angle))
+    }),
+  },
+]
+
+const ZOOM_PERCENTS = [50, 100, 200, 400]
+
+const zoomCommands: Command[] = [
+  { id: 'zoom.fit', group: 'zoom', label: 'commands.zoomFit', icon: '⤢', isAvailable: is2d, isEnabled: hasViewport, run: onViewport(zoomToFit) },
+  ...ZOOM_PERCENTS.map(
+    (percent): Command => ({
+      id: `zoom.${percent}`,
+      group: 'zoom',
+      label: percent === 100 ? 'commands.zoom1to1' : 'commands.zoomPercent',
+      labelValues: { percent },
+      isAvailable: is2d,
+      isEnabled: hasViewport,
+      run: onViewport((id) => zoomToScale(id, percent / 100)),
+    }),
+  ),
+  {
+    id: 'zoom.trueSize',
+    group: 'zoom',
+    label: 'commands.zoomTrueSize',
+    isAvailable: is2d,
+    isEnabled: (ctx) => is2dViewport(ctx) && pixelSpacingMm(ctx.viewportId!) !== null,
+    run: onViewport((id) => zoomToTrueSize(id, useSettings.getState().screenDpi)),
+  },
+  {
+    id: 'zoom.screenDpi',
+    group: 'zoom',
+    label: 'commands.screenDpi',
+    isAvailable: is2d,
+    run: async () => {
+      const values = await askForm(
+        'commands.screenDpi',
+        [{ name: 'dpi', label: 'dialogs.dpi', type: 'number', value: String(useSettings.getState().screenDpi), min: 50, max: 600, step: 1 }],
+        'dialogs.apply',
+      )
+      if (values) useSettings.getState().setScreenDpi(Number(values.dpi))
+    },
+  },
+]
+
+/** Windows offered for the target viewport's image, in dropdown order. */
+export function windowOptionsFor(ctx: CommandContext): WindowOption[] {
+  if (!ctx.viewportId || !isGrayscale(ctx)) return []
+  const modality = selectCurrentDisplaySet(ctx.state)?.series.modality ?? ''
+  return windowOptions(modality, headerWindows(ctx.viewportId), useSettings.getState().presets)
+}
+
+/** The target viewport's current window, rounded as shown in the overlay. */
+function currentWindow(viewportId: string) {
+  const range = getViewport(viewportId)?.getProperties()?.voiRange
+  if (!range) return null
+  const width = Math.max(1, Math.round(range.upper - range.lower))
+  return { width, center: Math.round((range.upper + range.lower) / 2) }
+}
+
+const windowCommands: Command[] = [
+  // Keys 1–9 pick the nth window of the dropdown (header windows first); 0 the first header window.
+  ...Array.from({ length: 10 }, (_, n): Command => ({
+    id: `window.option${n}`,
+    group: 'window',
+    label: 'commands.windowOption',
+    labelValues: { number: n },
+    isAvailable: (ctx) => isGrayscale(ctx) && windowOptionsFor(ctx).length > (n === 0 ? 0 : n - 1),
+    run: (ctx) => {
+      const options = windowOptionsFor(ctx)
+      const option = n === 0 ? options.find((o) => o.source === 'header') : options[n - 1]
+      if (option) applyWindow(ctx.viewportId!, option.width, option.center)
+    },
+  })),
+  { id: 'window.auto', group: 'window', label: 'commands.windowAuto', icon: 'A', isAvailable: isGrayscale, run: onViewport(autoWindow) },
+  { id: 'window.fullRange', group: 'window', label: 'commands.windowFullRange', isAvailable: isGrayscale, run: onViewport(fullRange) },
+  {
+    id: 'window.custom',
+    group: 'window',
+    label: 'commands.windowCustom',
+    isAvailable: isGrayscale,
+    run: onViewport(async (id) => {
+      const current = currentWindow(id)
+      const values = await askForm(
+        'commands.windowCustom',
+        [
+          { name: 'width', label: 'dialogs.windowWidth', type: 'number', value: String(current?.width ?? 400), min: 0.001 },
+          { name: 'center', label: 'dialogs.windowCenter', type: 'number', value: String(current?.center ?? 40) },
+        ],
+        'dialogs.apply',
+      )
+      if (values) applyWindow(id, Number(values.width), Number(values.center))
+    }),
+  },
+  {
+    id: 'window.voiLut',
+    group: 'window',
+    label: 'commands.windowVoiLut',
+    isAvailable: (ctx) => isGrayscale(ctx) && voiLutOf(ctx.viewportId!) !== null,
+    run: onViewport(applyVoiLut),
+  },
+  {
+    id: 'window.manage',
+    group: 'window',
+    label: 'commands.windowManage',
+    isAvailable: isGrayscale,
+    run: (ctx) => managePresets(selectCurrentDisplaySet(ctx.state)?.series.modality ?? '', currentWindow(ctx.viewportId!)),
+  },
+]
+
+const imageCommands: Command[] = [
+  {
+    id: 'image.smooth',
+    group: 'image',
+    label: 'commands.smoothPixels',
+    isAvailable: is2dViewport,
+    isActive: (ctx) => getSmoothPixels(ctx.viewportId!),
+    run: onViewport((id) => setSmoothPixels(id, !getSmoothPixels(id))),
+  },
+  {
+    id: 'image.sigmoid',
+    group: 'image',
+    label: 'commands.sigmoid',
+    isAvailable: isGrayscale,
+    isActive: (ctx) => getSigmoid(ctx.viewportId!),
+    run: onViewport((id) => setSigmoid(id, !getSigmoid(id))),
+  },
+]
+
+const colormapCommands: Command[] = COLORMAPS.map((name) => ({
+  id: `colormap.${name}`,
+  group: 'colormap',
+  label: `colormaps.${name.replace(/[^a-zA-Z0-9]/g, '')}`,
+  isAvailable: isGrayscale,
+  isActive: (ctx) => getColormapName(ctx.viewportId!) === name,
+  run: onViewport((id) => setColormap(id, name)),
+}))
+
+const filterCommands: Command[] = [
+  {
+    id: 'filter.none',
+    group: 'filter',
+    label: 'filters.none',
+    isAvailable: is2dViewport,
+    isActive: (ctx) => getFilter(ctx.viewportId!) === null,
+    run: onViewport((id) => setFilter(id, null)),
+  },
+  ...FILTERS.map(
+    (type): Command => ({
+      id: `filter.${type}`,
+      group: 'filter',
+      label: `filters.${type}`,
+      isAvailable: is2dViewport,
+      isActive: (ctx) => getFilter(ctx.viewportId!)?.type === type,
+      run: onViewport((id) => setFilter(id, { type, strength: getFilter(id)?.strength ?? 2 })),
+    }),
+  ),
+  ...([1, 2, 3] as FilterStrength[]).map(
+    (strength): Command => ({
+      id: `filter.strength${strength}`,
+      group: 'filter',
+      label: 'filters.strength',
+      labelValues: { strength },
+      isAvailable: (ctx) => is2dViewport(ctx) && getFilter(ctx.viewportId!) !== null,
+      isActive: (ctx) => getFilter(ctx.viewportId!)?.strength === strength,
+      run: onViewport((id) => {
+        const filter = getFilter(id)
+        if (filter) setFilter(id, { ...filter, strength })
+      }),
+    }),
+  ),
+]
+
+const DISPLAY_TOGGLES: (keyof DisplaySettings)[] = [
+  'overlayText',
+  'privacy',
+  'dicomOverlays',
+  'scaleBar',
+  'pixelValue',
+  'cornerPatient',
+  'cornerStudy',
+  'cornerImageSize',
+  'cornerZoom',
+  'cornerWindow',
+  'cornerSlice',
+  'orientationMarkers',
+]
+
+const displayCommands: Command[] = [
+  ...DISPLAY_TOGGLES.map(
+    (key): Command => ({
+      id: `display.${key}`,
+      group: 'display',
+      label: `display.${key}`,
+      isActive: () => useSettings.getState().display[key],
+      run: () => useSettings.getState().toggleDisplay(key),
+    }),
+  ),
+  {
+    id: 'display.fullscreen',
+    group: 'display',
+    label: 'display.fullscreen',
+    icon: '⛶',
+    isAvailable: () => fullscreenSupported(),
+    isActive: () => isFullscreen(),
+    run: () => toggleFullscreen(),
+  },
+  {
+    id: 'display.distractionFree',
+    group: 'display',
+    label: 'display.distractionFree',
+    isActive: (ctx) => ctx.state.distractionFree,
+    run: (ctx) => {
+      setDistractionFree(!ctx.state.distractionFree)
+      if (!ctx.state.distractionFree) notify(t('display.distractionFreeHint'), 'info')
+    },
+  },
+  {
+    id: 'display.exitDistractionFree',
+    group: 'display',
+    label: 'display.exitDistractionFree',
+    isAvailable: (ctx) => ctx.state.distractionFree,
+    run: () => setDistractionFree(false),
   },
 ]
 
@@ -199,7 +509,6 @@ const cineCommands: Command[] = [
     group: 'cine',
     label: 'cine.playPause',
     icon: '⏯',
-    keys: [' '],
     isAvailable: canPlay,
     run: (ctx) => (video(ctx) ? video(ctx)!.toggle() : toggleCine(ctx.viewportId!, cineSeries(ctx)!)),
   },
@@ -207,7 +516,6 @@ const cineCommands: Command[] = [
     id: 'cine.slower',
     group: 'cine',
     label: 'cine.slower',
-    keys: ['['],
     isAvailable: canPlay,
     run: (ctx) => (video(ctx) ? video(ctx)!.changeSpeed(-1) : changeCineFps(ctx.viewportId!, cineSeries(ctx)!, -1)),
   },
@@ -215,7 +523,6 @@ const cineCommands: Command[] = [
     id: 'cine.faster',
     group: 'cine',
     label: 'cine.faster',
-    keys: [']'],
     isAvailable: canPlay,
     run: (ctx) => (video(ctx) ? video(ctx)!.changeSpeed(1) : changeCineFps(ctx.viewportId!, cineSeries(ctx)!, 1)),
   },
@@ -223,7 +530,6 @@ const cineCommands: Command[] = [
     id: 'video.previousFrame',
     group: 'cine',
     label: 'video.previousFrame',
-    keys: ['arrowleft', 'arrowup'],
     isAvailable: (ctx) => video(ctx) !== undefined,
     run: (ctx) => video(ctx)!.step(-1),
   },
@@ -231,7 +537,6 @@ const cineCommands: Command[] = [
     id: 'video.nextFrame',
     group: 'cine',
     label: 'video.nextFrame',
-    keys: ['arrowright', 'arrowdown'],
     isAvailable: (ctx) => video(ctx) !== undefined,
     run: (ctx) => video(ctx)!.step(1),
   },
@@ -328,15 +633,21 @@ const panelCommands: Command[] = [
     group: 'panel',
     label: 'commands.tags',
     icon: 'TAGS',
-    keys: ['t'],
     isActive: (ctx) => ctx.state.panel === 'tags',
     run: () => togglePanel('tags'),
   },
 ]
 
-export const COMMANDS: Command[] = [
+const ALL_COMMANDS: Command[] = [
   ...toolCommands,
   ...viewCommands,
+  ...rotateCommands,
+  ...zoomCommands,
+  ...windowCommands,
+  ...imageCommands,
+  ...colormapCommands,
+  ...filterCommands,
+  ...displayCommands,
   ...cineCommands,
   ...sortCommands,
   ...modeCommands,
@@ -344,6 +655,9 @@ export const COMMANDS: Command[] = [
   ...linkCommands,
   ...panelCommands,
 ]
+
+/** Every command with its keyboard shortcuts from the keymap. */
+export const COMMANDS: Command[] = ALL_COMMANDS.map((command) => ({ ...command, keys: DEFAULT_KEYMAP[command.id] }))
 
 const byId = new Map(COMMANDS.map((command) => [command.id, command]))
 

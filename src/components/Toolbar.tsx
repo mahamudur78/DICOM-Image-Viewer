@@ -1,8 +1,11 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   COMMANDS,
+  getCommand,
   isAvailable,
+  runCommand,
+  windowOptionsFor,
   isEnabled,
   type Command,
   type CommandContext,
@@ -10,14 +13,16 @@ import {
 } from '../commands/commands'
 import { useCommandContext } from '../commands/useCommands'
 import type { SlabMode } from '../cornerstone/mpr'
-import { setWindow } from '../cornerstone/viewer'
 import { is2dKind } from '../cornerstone/viewportRegistry'
 import { groupedPresets } from '../cornerstone/volume3d'
-import { CT_PRESETS, findPresetIndex } from '../dicom/windowPresets'
+import { COLORMAPS, applyWindow, getColormapName, isColorImage, isVoiLutColormap, voiLutOf } from '../cornerstone/display'
+import { FILTERS } from '../store/viewportDisplayStore'
 import { openFiles } from '../store/viewerActions'
-import { selectCurrentDisplaySet, setPreset, setSlab, useViewer } from '../store/viewerStore'
+import { selectCurrentDisplaySet, setLayout, setPreset, setSlab, useViewer } from '../store/viewerStore'
+import { CommandMenu, type MenuSection } from './CommandMenu'
 import { FilePickers } from './FilePickers'
 import { LayoutIcon } from './LayoutIcon'
+import { MAX_LAYOUT_SIZE, MORE_LAYOUTS, clampLayout, type Layout } from './layouts'
 import { useViewportVoi } from './useViewportVoi'
 
 const SLAB_THICKNESSES = [0, 5, 10, 20, 40]
@@ -98,35 +103,205 @@ function PresetSelect({ modality }: { modality: string }) {
 }
 
 /**
- * Shows the preset matching the viewport's current window, or the window
- * itself once it has been changed some other way (e.g. by dragging).
+ * The window dropdown: windows from the image header, built-in and user
+ * presets (keys 1–9 in this order), then actions. Shows the option matching
+ * the viewport's window, or the window itself once changed some other way.
  */
-function WindowPresetSelect({ viewportId }: { viewportId: string }) {
+function WindowSelect({ viewportId, ctx }: { viewportId: string; ctx: CommandContext }) {
   const { t } = useTranslation()
   const voi = useViewportVoi(viewportId)
-  const matching = voi ? findPresetIndex(CT_PRESETS, voi) : -1
+  const options = windowOptionsFor(ctx)
+  const voiLut = voiLutOf(viewportId)
+  const close = (o: { width: number; center: number }) => voi && Math.abs(o.width - voi.width) <= 1 && Math.abs(o.center - voi.center) <= 1
+  // A named preset reads better than an unnamed header window with the same values.
+  const matching = [...options.entries()].sort(([, a], [, b]) => Number(a.labelKey && a.source === 'header') - Number(b.labelKey && b.source === 'header')).find(([, o]) => close(o))?.[0] ?? -1
+  const label = (o: (typeof options)[number]) => (o.labelKey ? t(o.label) : o.label)
+  const groups = (['header', 'builtin', 'user'] as const).map((source) => ({
+    source,
+    items: options.map((o, index) => ({ o, index })).filter(({ o }) => o.source === source),
+  }))
 
   return (
     <select
       aria-label={t('toolbar.windowPreset')}
-      value={matching >= 0 ? String(matching) : ''}
+      value={isVoiLutColormap(getColormapName(viewportId)) ? 'voiLut' : matching >= 0 ? `option:${matching}` : ''}
       onChange={(event) => {
-        const windowPreset = CT_PRESETS[Number(event.target.value)]
-        if (windowPreset) setWindow(viewportId, windowPreset.width, windowPreset.center)
+        const value = event.target.value
+        if (value.startsWith('option:')) {
+          const option = options[Number(value.slice(7))]
+          applyWindow(viewportId, option.width, option.center)
+        } else runCommand(`window.${value}`, ctx)
       }}
-      className={`ml-1 ${SELECT_CLASS}`}
+      className={`ml-1 max-w-48 ${SELECT_CLASS}`}
     >
       <option value="" disabled>
-        {voi && matching < 0
-          ? t('toolbar.currentWindow', { width: voi.width, center: voi.center })
-          : t('toolbar.windowPresetPlaceholder')}
+        {voi && matching < 0 ? t('toolbar.currentWindow', { width: voi.width, center: voi.center }) : t('toolbar.windowPresetPlaceholder')}
       </option>
-      {CT_PRESETS.map((p, index) => (
-        <option key={p.label} value={index}>
-          {t(p.label)} ({p.width}/{p.center})
-        </option>
-      ))}
+      {groups.map(
+        ({ source, items }) =>
+          items.length > 0 && (
+            <optgroup key={source} label={t(`window.group.${source}`)}>
+              {items.map(({ o, index }) => (
+                <option key={o.id} value={`option:${index}`}>
+                  {index < 9 ? `${index + 1}. ` : ''}
+                  {label(o)} ({Math.round(o.width)}/{Math.round(o.center)})
+                </option>
+              ))}
+            </optgroup>
+          ),
+      )}
+      <optgroup label={t('window.group.actions')}>
+        {voiLut && <option value="voiLut">{t('commands.windowVoiLut')}{voiLut.explanation ? `: ${voiLut.explanation}` : ''}</option>}
+        <option value="auto">{t('commands.windowAuto')}</option>
+        <option value="fullRange">{t('commands.windowFullRange')}</option>
+        <option value="custom">{t('commands.windowCustom')}</option>
+        <option value="manage">{t('commands.windowManage')}</option>
+      </optgroup>
     </select>
+  )
+}
+
+/** A toolbar button opening a menu of commands below it. */
+function MenuButton({ label, icon, sections }: { label: string; icon: ReactNode; sections: MenuSection[] }) {
+  const { t } = useTranslation()
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
+  const close = useCallback(() => setAnchor(null), [])
+  return (
+    <>
+      <button
+        title={t(label)}
+        aria-label={t(label)}
+        aria-haspopup="menu"
+        aria-expanded={anchor !== null}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          setAnchor(anchor ? null : { x: rect.left, y: rect.bottom + 4 })
+        }}
+        className="flex h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white"
+      >
+        {icon}
+        <span aria-hidden>▾</span>
+      </button>
+      {anchor && <CommandMenu x={anchor.x} y={anchor.y} sections={sections} label={t(label)} onClose={close} />}
+    </>
+  )
+}
+
+const VIEW_MENU: MenuSection[] = [
+  { title: 'menus.rotate', commands: ['rotate.left', 'view.rotate90', 'rotate.180', 'rotate.angle', 'view.flipHorizontal', 'view.flipVertical'] },
+  { title: 'menus.zoom', commands: ['zoom.fit', 'zoom.50', 'zoom.100', 'zoom.200', 'zoom.400', 'zoom.trueSize', 'zoom.screenDpi'] },
+  { title: 'menus.pixels', commands: ['image.smooth', 'image.sigmoid'] },
+  {
+    title: 'menus.overlays',
+    commands: ['display.overlayText', 'display.privacy', 'display.dicomOverlays', 'display.scaleBar', 'display.pixelValue'],
+  },
+  {
+    title: 'menus.cornerText',
+    commands: [
+      'display.cornerPatient',
+      'display.cornerStudy',
+      'display.cornerImageSize',
+      'display.cornerZoom',
+      'display.cornerWindow',
+      'display.cornerSlice',
+      'display.orientationMarkers',
+    ],
+  },
+  { title: 'menus.screen', commands: ['display.fullscreen', 'display.distractionFree'] },
+]
+
+const IMAGE_MENU: MenuSection[] = [
+  { title: 'menus.colormap', commands: COLORMAPS.map((name) => `colormap.${name}`) },
+  { title: 'menus.filter', commands: ['filter.none', ...FILTERS.map((type) => `filter.${type}`)] },
+  { title: 'menus.strength', commands: ['filter.strength1', 'filter.strength2', 'filter.strength3'] },
+]
+
+/** More layouts: common presets and a rows × columns grid to pick from. */
+function LayoutPicker() {
+  const { t } = useTranslation()
+  const layout = useViewer((s) => s.layout)
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState<Layout | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => !ref.current?.contains(event.target as Node) && setOpen(false)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [open])
+
+  const choose = (next: Layout) => {
+    setLayout(clampLayout(next))
+    setOpen(false)
+  }
+  const shown = hover ?? layout
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        title={t('layoutPicker.more')}
+        aria-label={t('layoutPicker.more')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex h-9 items-center gap-1 rounded-md px-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+      >
+        ▦<span aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div role="dialog" aria-label={t('layoutPicker.more')} className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-xl">
+          <div className="mb-2 grid grid-cols-3 gap-1">
+            {MORE_LAYOUTS.map((option) => (
+              <button
+                key={`${option.rows}x${option.cols}`}
+                aria-label={t('commands.layout', { ...option })}
+                aria-pressed={option.rows === layout.rows && option.cols === layout.cols}
+                onClick={() => choose(option)}
+                className="flex items-center justify-center gap-1 rounded px-1 py-1 text-xs text-slate-300 hover:bg-slate-800 aria-pressed:bg-sky-600 aria-pressed:text-white"
+              >
+                <LayoutIcon {...option} />
+                {option.rows}×{option.cols}
+              </button>
+            ))}
+          </div>
+          <div
+            className="grid gap-0.5"
+            style={{ gridTemplateColumns: `repeat(${MAX_LAYOUT_SIZE}, 1fr)` }}
+            onPointerLeave={() => setHover(null)}
+            aria-label={t('layoutPicker.grid')}
+            role="group"
+          >
+            {Array.from({ length: MAX_LAYOUT_SIZE * MAX_LAYOUT_SIZE }, (_, i) => {
+              const cell = { rows: Math.floor(i / MAX_LAYOUT_SIZE) + 1, cols: (i % MAX_LAYOUT_SIZE) + 1 }
+              const inside = cell.rows <= shown.rows && cell.cols <= shown.cols
+              return (
+                <button
+                  key={i}
+                  aria-label={t('layoutPicker.cell', { ...cell })}
+                  onPointerEnter={() => setHover(cell)}
+                  onFocus={() => setHover(cell)}
+                  onClick={() => choose(cell)}
+                  className={`aspect-square rounded-sm border ${inside ? 'border-sky-400 bg-sky-500/40' : 'border-slate-700 bg-slate-800'}`}
+                />
+              )
+            })}
+          </div>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            {shown.rows} × {shown.cols}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -165,26 +340,37 @@ function SlabControls() {
 }
 
 export function Toolbar() {
+  const { t } = useTranslation()
   const ctx = useCommandContext()
   const { mode, viewportId, kind } = ctx
   const modality = useViewer((s) => selectCurrentDisplaySet(s)?.series.modality ?? '')
   const show3dControls = mode === '3d' || (mode === 'mpr' && ctx.state.mprWith3d)
 
+  const is2d = viewportId !== null && is2dKind(kind)
+  const grayscale = is2d && !isColorImage(viewportId)
+  const viewButtons = ['view.invert', 'rotate.left', 'view.rotate90', 'view.flipHorizontal', 'view.flipVertical', 'view.reset']
+
   // Sections are separated by a divider; empty ones (e.g. image tools for a PDF) disappear.
   const sections: ReactNode[][] = [
     groupButtons(['tool'], ctx),
     [
-      ...groupButtons(['view'], ctx).filter((button) => button.key !== 'view.downloadPng'),
-      modality === 'CT' && viewportId && is2dKind(kind) && <WindowPresetSelect key="window" viewportId={viewportId} />,
+      ...viewButtons.map(getCommand).filter((c) => isAvailable(c, ctx)).map((c) => <CommandButton key={c.id} command={c} ctx={ctx} />),
+      grayscale && <WindowSelect key="window" viewportId={viewportId!} ctx={ctx} />,
+      is2d && <MenuButton key="view-menu" label="menus.view" icon={t('menus.viewShort')} sections={VIEW_MENU} />,
+      is2d && <MenuButton key="image-menu" label="menus.image" icon={t('menus.imageShort')} sections={IMAGE_MENU} />,
     ],
     [
       ...groupButtons(['mode'], ctx),
       mode === 'mpr' && <SlabControls key="slab" />,
       show3dControls && <PresetSelect key="preset" modality={modality} />,
     ],
-    mode === 'grid' ? groupButtons(['layout'], ctx) : [],
+    mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],
     mode === 'grid' ? groupButtons(['link'], ctx) : [],
-    [...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'), ...groupButtons(['panel'], ctx)],
+    [
+      ...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'),
+      ...groupButtons(['panel'], ctx),
+      ...['display.fullscreen'].map(getCommand).filter((c) => isAvailable(c, ctx)).map((c) => <CommandButton key={c.id} command={c} ctx={ctx} />),
+    ],
   ].map((section) => section.filter(Boolean))
 
   return (

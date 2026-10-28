@@ -52,6 +52,8 @@ export interface ViewerState {
   slab: Slab
   /** 3D rendering preset. */
   preset: string
+  /** Header, toolbar and series list hidden: only the images. */
+  distractionFree: boolean
 }
 
 const EMPTY_CELLS: (DisplaySet | null)[] = Array(MAX_VIEWPORTS).fill(null)
@@ -72,6 +74,7 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   mprWith3d: false,
   slab: { mode: 'mip', thickness: 0 },
   preset: defaultPresetFor('CT'),
+  distractionFree: false,
 }
 
 export const useViewer = create<ViewerState>()(() => INITIAL_VIEWER_STATE)
@@ -221,3 +224,5 @@ export function setSeriesSort(seriesId: string, mode: SortMode) {
     }
   })
 }
+
+export const setDistractionFree = (distractionFree: boolean) => set({ distractionFree })

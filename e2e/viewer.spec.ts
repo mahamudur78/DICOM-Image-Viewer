@@ -15,15 +15,15 @@ test('window preset dropdown follows the viewport window', async ({ page }) => {
   await openPhantom(page)
   await viewport(page, 'viewport-1').click()
   const select = page.getByLabel('Window preset')
-  await expect(select.locator('option:checked')).toHaveText('Soft tissue (400/40)')
+  await expect(select.locator('option:checked')).toHaveText('2. Soft tissue (400/40)')
 
-  await select.selectOption({ label: 'Brain (80/40)' })
+  await select.selectOption({ label: '5. Brain (80/40)' })
   await expect(viewport(page, 'viewport-1')).toContainText('W: 80 L: 40')
-  await expect(select.locator('option:checked')).toHaveText('Brain (80/40)')
+  await expect(select.locator('option:checked')).toHaveText('5. Brain (80/40)')
 
   // Each viewport shows its own window.
   await viewport(page, 'viewport-3').click()
-  await expect(select.locator('option:checked')).toHaveText('Lung (1500/-600)')
+  await expect(select.locator('option:checked')).toHaveText('3. Lung (1500/-600)')
 })
 
 test('keyboard shortcuts invert, scroll and reset', async ({ page }) => {

@@ -6,7 +6,7 @@ import { applyDicomdir, referencedFiles } from './dicomdir'
 import { isDicomdirPath, sniffFile, type ImageFormat } from './fileType'
 import { framesOf, frameOfReference } from './frames'
 import { decodedText, number, numbers, readHeader, text } from './header'
-import { clearImagePlanes, recordFrameLuts, recordImagePlane } from './imagePlaneMetadata'
+import { clearImagePlanes, recordFrameLuts, recordImagePlane, recordScaling } from './imagePlaneMetadata'
 import { imageToDicom, newImportStudy } from './imageImport'
 import {
   formatDate,
@@ -23,6 +23,8 @@ import {
 } from './parse'
 import type { ImageEntry, LoadIssue, Series, SeriesKind, Study } from './types'
 import { groupByPatient } from './studyTree'
+import { petInstanceMetadata, suvFactors } from './suv'
+import type { InstanceMetadata } from '@cornerstonejs/calculate-suv'
 import { extractZip, isZipPath, type AskPassword } from './zip'
 
 export { parseHeader } from './header'
@@ -60,6 +62,8 @@ interface Parsed {
 interface SeriesDraft {
   series: Series
   keys: string[]
+  /** PET only: SUV header fields per file, with the image ids of its frames. */
+  pet: { imageIds: string[]; metadata: InstanceMetadata }[]
 }
 
 /**
@@ -226,6 +230,7 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[]): Study[] {
           images: [],
         },
         keys: [],
+        pet: [],
       }
       drafts.set(draftKey, draft)
       study.series.push(draft.series)
@@ -233,6 +238,7 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[]): Study[] {
     addEntries(draft, source, dataSet, kind)
   }
 
+  for (const draft of drafts.values()) applySuv(draft)
   for (const study of studies.values()) {
     study.series = study.series.flatMap((series) => splitSequences(drafts.get(series.id)!))
     study.series.sort((a, b) => a.seriesNumber - b.seriesNumber)
@@ -270,10 +276,12 @@ function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser
   const frameCount = Math.max(1, number(dataSet, 'x00280008') ?? 1)
   const frameOfReferenceUID = frameOfReference(dataSet)
 
+  const imageIds: string[] = []
   framesOf(dataSet, frameCount).forEach((frame, i) => {
     const imageId = frameCount > 1 ? `${baseImageId}?frame=${i + 1}` : baseImageId
     recordImagePlane(imageId, { ...frame, rows, columns, frameOfReferenceUID })
     recordFrameLuts(imageId, frame)
+    imageIds.push(imageId)
     draft.series.images.push({
       ...base,
       imageId,
@@ -282,6 +290,7 @@ function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser
     })
     draft.keys.push(sequenceKey({ ...frame, rows, columns }))
   })
+  if (draft.series.modality === 'PT') draft.pet.push({ imageIds, metadata: petInstanceMetadata(dataSet) })
 }
 
 /**
@@ -307,4 +316,19 @@ function splitSequences({ series, keys }: SeriesDraft): Series[] {
     isLocalizer: series.isLocalizer,
     images,
   }))
+}
+
+/**
+ * PET images are shown in SUVbw: the loader scales pixels by the factor the
+ * `scalingModule` metadata provides. Without the needed header fields the
+ * series stays in its stored unit and records why.
+ */
+function applySuv(draft: SeriesDraft) {
+  if (draft.pet.length === 0) return
+  const result = suvFactors(draft.pet.map((p) => p.metadata))
+  if ('error' in result) {
+    draft.series.suvError = result.error
+    return
+  }
+  draft.pet.forEach(({ imageIds }, i) => imageIds.forEach((imageId) => recordScaling(imageId, result.factors[i])))
 }

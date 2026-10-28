@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০ ও ১ সম্পন্ন, ফেজ ২ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–২ সম্পন্ন, ফেজ ৩ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -93,27 +93,29 @@
 - [x] **একাধিক রোগী/স্টাডি একসাথে:** সাইডবারে রোগী → স্টাডি → সিরিজ গাছ, ফিল্টার ও সার্চ
 - [x] Definition of Done পূরণ
 
-## ফেজ ২: 2D দেখার টুল
+## ফেজ ২: 2D দেখার টুল ✅
 
-- [ ] **W/L হাতে লেখা:** W আর L ইনপুট (ড্রপডাউনে "Custom…" বা টুলবারে)
-- [ ] **নিজের preset:** যোগ, নাম বদল, মুছে ফেলা, ক্রম বদল; modality অনুযায়ী (CT, MR, PT…); শর্টকাট `1`–`9`
-- [ ] **MR আর অন্য modality-র জন্য preset** (DICOM-এর window explanation থেকেও)
-- [ ] **ROI দিয়ে W/L:** একটা আয়তক্ষেত্র টানলে তার min/max থেকে W/L
-- [ ] **Auto W/L** (histogram থেকে)
-- [ ] **VOI LUT আর Presentation LUT** (DICOM-এ থাকলে) মেনে চলা; sigmoid
-- [ ] **PET ইউনিট:** SUVbw (আর SUVlbm/SUVbsa) হিসাব, PET-এর জন্য উল্টো grayscale ও colormap
-- [ ] **Colormap / pseudocolor:** hot iron, rainbow, jet ইত্যাদি (সব modality-তে)
-- [ ] **Image filter:** sharpen, smooth, edge, emboss, morphological (erode/dilate); শক্তি নিয়ন্ত্রণ; reset
-- [ ] **DICOM overlay plane** (60xx group) দেখানো, চালু/বন্ধ
-- [ ] **ঘোরানো:** 90° দুই দিকে, 180°; flip (আছে) — আর ইচ্ছেমতো কোণে ঘোরানো
-- [ ] **Zoom বিকল্প:** fit, 1:1 (প্রকৃত পিক্সেল), নির্দিষ্ট %, "actual size" (ক্যালিব্রেটেড মনিটরে mm)
-- [ ] **Interpolation চালু/বন্ধ** (pixel দেখতে)
-- [ ] **Overlay লেখা কাস্টমাইজ:** কোন কোণায় কোন তথ্য; রোগীর তথ্য লুকানো (privacy mode)
-- [ ] **বড় লেআউট:** 1×3, 3×1, 2×3, 3×2, 3×3, 4×4, আর কাস্টম (rows × cols নির্বাচন)
-- [ ] **ফুল-স্ক্রিন** (পুরো অ্যাপ আর একটা viewport) আর **distraction-free মোড** (টুলবার, সাইডবার লুকানো)
-- [ ] **Scale bar** আর ruler overlay
-- [ ] **Pixel value overlay:** মাউসের নিচের HU/মান আর স্থানাঙ্ক (probe ছাড়াই, সবসময়)
-- [ ] Definition of Done পূরণ
+> সম্পন্ন 2026-10-29 · বিস্তারিত: [PHASE_2_2D_TOOLS_PLAN.md](PHASE_2_2D_TOOLS_PLAN.md)
+
+- [x] **W/L হাতে লেখা:** W আর L ইনপুট (ড্রপডাউনে "Custom…" বা টুলবারে)
+- [x] **নিজের preset:** যোগ, নাম বদল, মুছে ফেলা, ক্রম বদল; modality অনুযায়ী (CT, MR, PT…); শর্টকাট `1`–`9`
+- [x] **MR আর অন্য modality-র জন্য preset** (DICOM-এর window explanation থেকেও)
+- [x] **ROI দিয়ে W/L:** একটা আয়তক্ষেত্র টানলে তার min/max থেকে W/L
+- [x] **Auto W/L** (histogram থেকে)
+- [x] **VOI LUT আর Presentation LUT** (DICOM-এ থাকলে) মেনে চলা; sigmoid
+- [x] **PET ইউনিট:** SUVbw (আর SUVlbm/SUVbsa) হিসাব, PET-এর জন্য উল্টো grayscale ও colormap
+- [x] **Colormap / pseudocolor:** hot iron, rainbow, jet ইত্যাদি (সব modality-তে)
+- [x] **Image filter:** sharpen, smooth, edge, emboss, morphological (erode/dilate); শক্তি নিয়ন্ত্রণ; reset
+- [x] **DICOM overlay plane** (60xx group) দেখানো, চালু/বন্ধ
+- [x] **ঘোরানো:** 90° দুই দিকে, 180°; flip (আছে) — আর ইচ্ছেমতো কোণে ঘোরানো
+- [x] **Zoom বিকল্প:** fit, 1:1 (প্রকৃত পিক্সেল), নির্দিষ্ট %, "actual size" (ক্যালিব্রেটেড মনিটরে mm)
+- [x] **Interpolation চালু/বন্ধ** (pixel দেখতে)
+- [x] **Overlay লেখা কাস্টমাইজ:** কোন কোণায় কোন তথ্য; রোগীর তথ্য লুকানো (privacy mode)
+- [x] **বড় লেআউট:** 1×3, 3×1, 2×3, 3×2, 3×3, 4×4, আর কাস্টম (rows × cols নির্বাচন)
+- [x] **ফুল-স্ক্রিন** (পুরো অ্যাপ আর একটা viewport) আর **distraction-free মোড** (টুলবার, সাইডবার লুকানো)
+- [x] **Scale bar** আর ruler overlay
+- [x] **Pixel value overlay:** মাউসের নিচের HU/মান আর স্থানাঙ্ক (probe ছাড়াই, সবসময়)
+- [x] Definition of Done পূরণ
 
 ## ফেজ ৩: মাপজোখ ও annotation
 

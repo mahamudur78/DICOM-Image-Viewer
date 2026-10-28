@@ -67,7 +67,14 @@ separate chunk that starts downloading right after the first render.
 - 3D volume rendering with 26 presets (CT-Bone, CT-AAA, MR-Angio, …), rotate, preset shift,
   orientation cube, and an "MPR + 3D" 2×2 layout; large volumes ask before loading
 - Right-click menu on viewports, notifications, link settings remembered between visits
+- Window dropdown for every grayscale image: header windows (with their names), CT presets, your own
+  presets (keys 1–9), auto, full range, custom; window from a dragged region; VOI LUT, sigmoid and
+  inverse Presentation LUT honoured
+- PET in SUV (bw, lbm, bsa) with an inverted 0–5 SUV default; value under the mouse (HU, SUV, RGB)
+- Colormaps, image filters (sharpen, smooth, edges, emboss, erode, dilate), DICOM overlay planes,
+  rotation (90°/180°/any angle), zoom 1:1 / % / actual size, pixel smoothing, scale bar
+- Layouts up to 4×4, full screen, images-only mode, privacy mode and configurable corner text
 
-Keyboard: `↑/↓` slice · `Space` play/pause · `[` `]` slower/faster · `W P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `I` invert · `R` reset · `T` tags
+Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

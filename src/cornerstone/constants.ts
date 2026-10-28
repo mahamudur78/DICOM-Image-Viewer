@@ -2,7 +2,8 @@
 // must not import Cornerstone, so the stores stay testable in Node.
 
 export const RENDERING_ENGINE_ID = 'main-rendering-engine'
-export const MAX_VIEWPORTS = 4
+/** Grid cells (a 4×4 layout). */
+export const MAX_VIEWPORTS = 16
 
 export const viewportIdAt = (cell: number) => `viewport-${cell}`
 

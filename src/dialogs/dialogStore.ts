@@ -1,9 +1,23 @@
 import { create } from 'zustand'
 import type { LoadIssue } from '../dicom/types'
 
+/** A field of a form dialog; labels are i18n keys. */
+export interface FormField {
+  name: string
+  label: string
+  type: 'number' | 'text'
+  value: string
+  min?: number
+  max?: number
+  step?: number
+  required?: boolean
+}
+
 export type DialogRequest =
   | { type: 'password'; zipName: string; retry: boolean; resolve: (password: string | null) => void }
   | { type: 'issues'; issues: LoadIssue[] }
+  | { type: 'form'; title: string; fields: FormField[]; submit: string; resolve: (values: Record<string, string> | null) => void }
+  | { type: 'presets'; modality: string; current: { width: number; center: number } | null }
 
 /** One modal dialog at a time; requests made while one is open wait in line. */
 export const useDialogs = create<{ queue: DialogRequest[] }>()(() => ({ queue: [] }))
@@ -18,3 +32,12 @@ export function askPassword(zipName: string, retry: boolean) {
 }
 
 export const showIssues = (issues: LoadIssue[]) => push({ type: 'issues', issues })
+
+/** Asks for a few values (e.g. a window or an angle); resolves to null when cancelled. */
+export function askForm(title: string, fields: FormField[], submit: string) {
+  return new Promise<Record<string, string> | null>((resolve) => push({ type: 'form', title, fields, submit, resolve }))
+}
+
+/** The user's window presets for one modality: rename, reorder, delete, add the current window. */
+export const managePresets = (modality: string, current: { width: number; center: number } | null) =>
+  push({ type: 'presets', modality, current })

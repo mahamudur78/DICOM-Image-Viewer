@@ -10,6 +10,8 @@
 //   zip/        plain, nested, ZipCrypto and AES ZIPs (password "dicom123")
 //   images/     JPEG, PNG, BMP, GIF, WebP and a two-page TIFF
 //   edge/       a completely uniform (blank) frame
+//   window/     MR with two header windows, VOI LUT sequence, sigmoid, Presentation LUT INVERSE
+//   overlay/    images with DICOM overlay planes (single and multi-frame)
 //   sort/       five slices whose instance, position, time and file name orders all differ;
 //               the first pixel holds the slice's label (100, 200, …) so tests can tell them apart
 //
@@ -30,7 +32,7 @@ import {
 } from './dicom-writer.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '7'
+export const SAMPLES_VERSION = '11'
 
 const root = process.argv[2]
 if (!root) {
@@ -194,6 +196,8 @@ const grayscale16 = (rows, cols, photometric = 'MONOCHROME2') => [
         element(0x0008, 0x0032, 'TM', '100000'),
         element(0x0008, 0x0060, 'CS', 'PT'),
         element(0x0008, 0x103e, 'LO', 'PET WB AC'),
+        element(0x0010, 0x0040, 'CS', 'M'),
+        element(0x0010, 0x1020, 'DS', 1.75), // patient size (m), for SUVlbm and SUVbsa
         element(0x0010, 0x1030, 'DS', 70), // patient weight (kg)
         element(0x0018, 0x0050, 'DS', 4),
         element(0x0054, 0x0016, 'SQ', [
@@ -203,6 +207,7 @@ const grayscale16 = (rows, cols, photometric = 'MONOCHROME2') => [
             element(0x0018, 0x1075, 'DS', 6586.2), // F-18 half-life (s)
           ],
         ]),
+        element(0x0028, 0x0051, 'CS', 'DECY\\ATTN'), // corrected image: needed for SUV
         element(0x0054, 0x1001, 'CS', 'BQML'),
         element(0x0054, 0x1102, 'CS', 'START'),
         element(0x0020, 0x000d, 'UI', `${ROOT}.3`),
@@ -732,6 +737,126 @@ if (hasFfmpeg) {
       element(0x0020, 0x0013, 'IS', 1),
       ...grayscale16(32, 32),
       element(0x7fe0, 0x0010, 'OW', uint16Pixels(new Array(32 * 32).fill(0))),
+    ],
+  })
+}
+
+// --- window handling (phase 2) --------------------------------------------------------
+{
+  outDir = dir('window')
+  const size = 32
+  const ramp = Array.from({ length: size * size }, (_, i) => (i % size) * 32) // 0..992 left to right
+  const base = (n, description, extra, photometric = 'MONOCHROME2') => ({
+    sopClassUID: SOP.mr,
+    sopInstanceUID: `${ROOT}.13.${n}`,
+    elements: [
+      ...patient('Sample^Window', 'SAMPLE-WINDOW'),
+      ...study(`${ROOT}.13`, 'Window handling'),
+      element(0x0008, 0x0060, 'CS', 'MR'),
+      element(0x0008, 0x103e, 'LO', description),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.13.${n}00`),
+      element(0x0020, 0x0011, 'IS', n),
+      element(0x0020, 0x0013, 'IS', 1),
+      ...grayscale16(size, size, photometric),
+      ...extra,
+      element(0x7fe0, 0x0010, 'OW', uint16Pixels(ramp)),
+    ],
+  })
+  writeDicomFile(
+    join(outDir, 'mr_windows.dcm'),
+    base(1, 'Two windows', [
+      element(0x0028, 0x1050, 'DS', '300\\600'),
+      element(0x0028, 0x1051, 'DS', '600\\1200'),
+      element(0x0028, 0x1055, 'LO', 'SOFT\\WIDE'),
+    ]),
+  )
+  // VOI LUT: a 1024-entry table mapping the ramp to an inverted 8-bit output.
+  const lut = Array.from({ length: 1024 }, (_, i) => 255 - Math.floor(i / 4))
+  writeDicomFile(
+    join(outDir, 'voi_lut.dcm'),
+    base(2, 'VOI LUT', [
+      element(0x0028, 0x3010, 'SQ', [
+        item(element(0x0028, 0x3002, 'US', [1024, 0, 8]), element(0x0028, 0x3003, 'LO', 'INVERTING LUT'), element(0x0028, 0x3006, 'OW', uint16Pixels(lut))),
+      ]),
+    ]),
+  )
+  // 1024 distinct values plus two very bright pixels: auto window ignores them, full range does not.
+  const outliers = Array.from({ length: size * size }, (_, i) => (i < 2 ? 60000 : i))
+  writeDicomFile(join(outDir, 'outliers.dcm'), {
+    ...base(5, 'Outliers', []),
+    elements: [...base(5, 'Outliers', []).elements.filter((e) => e.tag !== 0x7fe00010), element(0x7fe0, 0x0010, 'OW', uint16Pixels(outliers))],
+  })
+  writeDicomFile(
+    join(outDir, 'sigmoid.dcm'),
+    base(3, 'Sigmoid', [element(0x0028, 0x1050, 'DS', 500), element(0x0028, 0x1051, 'DS', 400), element(0x0028, 0x1056, 'CS', 'SIGMOID')]),
+  )
+  writeDicomFile(
+    join(outDir, 'inverse.dcm'),
+    base(4, 'Presentation LUT inverse', [element(0x0028, 0x1050, 'DS', 500), element(0x0028, 0x1051, 'DS', 1000), element(0x2050, 0x0020, 'CS', 'INVERSE')]),
+  )
+}
+
+// --- DICOM overlay planes (phase 2) --------------------------------------------------
+{
+  outDir = dir('overlay')
+  const size = 64
+  // One bit per pixel, packed little-endian within bytes (PS3.5 8.1.2).
+  const packBits = (bits) => {
+    const bytes = Buffer.alloc(Math.ceil(bits.length / 8))
+    bits.forEach((bit, i) => bit && (bytes[i >> 3] |= 1 << (i & 7)))
+    return new Uint8Array(bytes)
+  }
+  const square = (inset) =>
+    Array.from({ length: size * size }, (_, i) => {
+      const x = i % size
+      const y = Math.floor(i / size)
+      const edge = x === inset || y === inset || x === size - 1 - inset || y === size - 1 - inset
+      return edge && x >= inset && y >= inset && x <= size - 1 - inset && y <= size - 1 - inset ? 1 : 0
+    })
+  const overlay = (bits, frames) => [
+    element(0x6000, 0x0010, 'US', size),
+    element(0x6000, 0x0011, 'US', size),
+    ...(frames ? [element(0x6000, 0x0015, 'IS', frames), element(0x6000, 0x0051, 'US', 1)] : []),
+    element(0x6000, 0x0022, 'LO', 'Box'),
+    element(0x6000, 0x0040, 'CS', 'G'),
+    element(0x6000, 0x0050, 'SS', new Uint8Array([1, 0, 1, 0])),
+    element(0x6000, 0x0100, 'US', 1),
+    element(0x6000, 0x0102, 'US', 0),
+    element(0x6000, 0x3000, 'OW', packBits(bits)),
+  ]
+  const gray = (frames) => uint16Pixels(new Array(size * size * frames).fill(0).map((_, i) => ((i % size) + Math.floor(i / size)) % 64 * 8))
+  writeDicomFile(join(outDir, 'overlay.dcm'), {
+    sopClassUID: SOP.dx,
+    sopInstanceUID: `${ROOT}.14.1`,
+    elements: [
+      ...patient('Sample^Overlay', 'SAMPLE-OVERLAY'),
+      ...study(`${ROOT}.14`, 'Overlays'),
+      element(0x0008, 0x0060, 'CS', 'DX'),
+      element(0x0008, 0x103e, 'LO', 'Overlay box'),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.14.100`),
+      element(0x0020, 0x0011, 'IS', 1),
+      element(0x0020, 0x0013, 'IS', 1),
+      ...grayscale16(size, size),
+      ...overlay(square(8)),
+      element(0x7fe0, 0x0010, 'OW', gray(1)),
+    ],
+  })
+  // Two frames, each with its own overlay frame (a box with a different inset).
+  writeDicomFile(join(outDir, 'overlay_multiframe.dcm'), {
+    sopClassUID: '1.2.840.10008.5.1.4.1.1.3.1',
+    sopInstanceUID: `${ROOT}.14.2`,
+    elements: [
+      ...patient('Sample^Overlay', 'SAMPLE-OVERLAY'),
+      ...study(`${ROOT}.14`, 'Overlays'),
+      element(0x0008, 0x0060, 'CS', 'US'),
+      element(0x0008, 0x103e, 'LO', 'Overlay per frame'),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.14.200`),
+      element(0x0020, 0x0011, 'IS', 2),
+      element(0x0020, 0x0013, 'IS', 1),
+      element(0x0028, 0x0008, 'IS', 2),
+      ...grayscale16(size, size),
+      ...overlay([...square(4), ...square(20)], 2),
+      element(0x7fe0, 0x0010, 'OW', gray(2)),
     ],
   })
 }

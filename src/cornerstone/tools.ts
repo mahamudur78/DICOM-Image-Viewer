@@ -9,12 +9,14 @@ import {
   PanTool,
   ProbeTool,
   ReferenceLinesTool,
+  ScaleOverlayTool,
   StackScrollTool,
   ToolGroupManager,
   TrackballRotateTool,
   WindowLevelTool,
   ZoomTool,
 } from '@cornerstonejs/tools'
+import { RegionWindowTool } from './regionWindowTool'
 
 const { MouseBindings } = ToolEnums
 
@@ -31,6 +33,7 @@ export const VOLUME_SHIFT_TOOL = 'VolumeShift'
 /** Tools that can be bound to the left mouse button from the toolbar. */
 export const PRIMARY_TOOLS = {
   windowLevel: WindowLevelTool.toolName,
+  windowRegion: RegionWindowTool.toolName,
   pan: PanTool.toolName,
   zoom: ZoomTool.toolName,
   magnify: MagnifyTool.toolName,
@@ -49,8 +52,8 @@ const MEASUREMENTS: PrimaryTool[] = ['length', 'angle', 'ellipse', 'probe']
 
 /** Which toolbar tools exist in each view mode's tool group. */
 const GROUP_TOOLS: Record<string, PrimaryTool[]> = {
-  [TOOL_GROUP_ID]: ['windowLevel', 'pan', 'zoom', 'magnify', ...MEASUREMENTS],
-  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'pan', 'zoom', 'magnify', 'crosshairs', ...MEASUREMENTS],
+  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', ...MEASUREMENTS],
+  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', ...MEASUREMENTS],
   [VR_TOOL_GROUP_ID]: ['rotate', 'shift', 'pan', 'zoom'],
 }
 
@@ -77,7 +80,13 @@ export function createToolGroups() {
     toolGroup.addTool(StackScrollTool.toolName)
     toolGroup.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
   }
-  ToolGroupManager.getToolGroup(TOOL_GROUP_ID)!.addTool(ReferenceLinesTool.toolName)
+  const main = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)!
+  main.addTool(ReferenceLinesTool.toolName)
+  main.addTool(ScaleOverlayTool.toolName, { scaleLocation: 'bottom' })
+  // PET windows in SUV are only a few units wide.
+  for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
+    ToolGroupManager.getToolGroup(id)!.setToolConfiguration(RegionWindowTool.toolName, { minWindowWidth: 0.1 })
+  }
 
   // 3D: the wheel zooms (there are no slices to scroll), and the cube shows orientation.
   const vr = setupToolGroup(VR_TOOL_GROUP_ID)
@@ -128,4 +137,12 @@ export function setPrimaryTool(tool: PrimaryTool, mode: ViewMode) {
   if (current === toolName) return
   if (current) toolGroup.setToolPassive(current)
   toolGroup.setToolActive(toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] })
+}
+
+/** Scale bar (mm) on the stack viewports. */
+export function setScaleBar(visible: boolean) {
+  const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)
+  if (!toolGroup) return
+  if (visible) toolGroup.setToolEnabled(ScaleOverlayTool.toolName)
+  else toolGroup.setToolDisabled(ScaleOverlayTool.toolName)
 }

@@ -28,6 +28,7 @@ export default function App() {
   const { t } = useTranslation()
   const hasStudies = useViewer((s) => s.studies.length > 0)
   const loading = useViewer((s) => s.loading)
+  const distractionFree = useViewer((s) => s.distractionFree)
   const [dragging, setDragging] = useState(false)
 
   // Download and start the viewer in the background while the welcome page is shown.
@@ -58,7 +59,7 @@ export default function App() {
       }}
       onDrop={handleDrop}
     >
-      <header className="flex items-center gap-3 border-b border-slate-800 px-4 py-2">
+      <header className={`flex items-center gap-3 border-b border-slate-800 px-4 py-2 ${distractionFree && hasStudies ? 'hidden' : ''}`}>
         <span className="text-lg">🩻</span>
         <span className="font-semibold text-slate-100">{t('app.name')}</span>
         <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400 sm:inline">

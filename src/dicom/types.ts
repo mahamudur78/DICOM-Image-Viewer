@@ -37,6 +37,8 @@ export interface Series {
   /** Per-frame display durations in ms (Frame Time Vector), or null. */
   frameTimeVector: number[] | null
   sortMode: SortMode
+  /** PET: why values could not be converted to SUV (shown in their stored unit instead). */
+  suvError?: string
   images: ImageEntry[]
 }
 

@@ -1,4 +1,5 @@
 import { metaData } from '@cornerstonejs/core'
+import { wadouri } from '@cornerstonejs/dicom-image-loader'
 import type { FrameInfo } from './frames'
 
 interface ImagePlane {
@@ -66,9 +67,19 @@ export function getImagePlane(imageId: string) {
   return planes.get(imageId)
 }
 
+/** SUV factors of PET images, read by the image loader to pre-scale pixels to SUVbw. */
+const scaling = new Map<string, { suvbw: number; suvlbm?: number; suvbsa?: number }>()
+
+export function recordScaling(imageId: string, factors: { suvbw: number; suvlbm?: number; suvbsa?: number }) {
+  scaling.set(imageId, factors)
+}
+
+export const getScaling = (imageId: string) => scaling.get(imageId)
+
 export function clearImagePlanes() {
   planes.clear()
   frameLuts.clear()
+  scaling.clear()
 }
 
 /** Lower than the loader's provider (0), so loaded images keep their own metadata. */
@@ -85,9 +96,51 @@ export function registerImagePlaneProvider() {
 
   metaData.addProvider((type: string, imageId: string) => {
     const luts = frameLuts.get(imageId)
-    if (!luts) return undefined
-    if (type === 'voiLutModule') return luts.voi
-    if (type === 'modalityLutModule') return luts.rescale
+    if (luts) {
+      if (type === 'voiLutModule') return luts.voi
+      if (type === 'modalityLutModule') return luts.rescale
+    }
+    if (type === 'voiLutModule' && imageId.startsWith('dicomfile:')) return fixedVoiLutModule(imageId)
+    if (type === 'imagePlaneModule' && imageId.startsWith('dicomfile:') && !planes.has(imageId)) return defaultPlane(imageId)
     return undefined
   }, FRAME_LUT_PRIORITY)
+
+  metaData.addProvider((type: string, imageId: string) => (type === 'scalingModule' ? scaling.get(imageId) : undefined), FRAME_LUT_PRIORITY)
+}
+
+/**
+ * The loader's VOI LUT module with VOI LUT Function (0028,1056) as an array:
+ * the image loader reads `voiLUTFunction[0]`, so a plain "SIGMOID" string
+ * became "S" and broke the stack (Cornerstone 5.13).
+ */
+function fixedVoiLutModule(imageId: string) {
+  const module = wadouri.metaData.metaDataProvider('voiLutModule', imageId) as { voiLUTFunction?: string | string[] } | undefined
+  if (!module || typeof module.voiLUTFunction !== 'string') return undefined
+  return { ...module, voiLUTFunction: [module.voiLUTFunction.trim()] }
+}
+
+/**
+ * Images without position and orientation (radiographs, ultrasound, scans)
+ * get the default plane the viewport already draws them in, so tools that
+ * convert between image and world coordinates (measurements, ROI window)
+ * work on them too. Pixel spacing is kept when present; otherwise 1 (pixels).
+ */
+function defaultPlane(imageId: string) {
+  const module = wadouri.metaData.metaDataProvider('imagePlaneModule', imageId) as
+    | (Partial<ImagePlane> & { imageOrientationPatient?: number[] })
+    | undefined
+  if (!module || module.imageOrientationPatient?.length === 6) return undefined
+  const rowSpacing = module.rowPixelSpacing || 1
+  const columnSpacing = module.columnPixelSpacing || 1
+  return {
+    ...module,
+    imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+    rowCosines: [1, 0, 0],
+    columnCosines: [0, 1, 0],
+    imagePositionPatient: [0, 0, 0],
+    rowPixelSpacing: rowSpacing,
+    columnPixelSpacing: columnSpacing,
+    pixelSpacing: [rowSpacing, columnSpacing],
+    usingDefaultValues: true,
+  }
 }
