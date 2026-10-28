@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useViewportRegistry } from '../cornerstone/viewportRegistry'
+import { useMeasurementVersion } from '../measurements/manage'
 import { useSettings } from '../store/settingsStore'
 import { useViewportDisplay } from '../store/viewportDisplayStore'
 import { useViewer } from '../store/viewerStore'
@@ -14,6 +15,8 @@ export function useCommandContext(): CommandContext {
   useSettings((s) => s.presets)
   useViewportDisplay((s) => s.filters)
   useViewportRegistry((s) => s.kinds)
+  useSettings((s) => s.measureUnit)
+  useMeasurementVersion((s) => s.version)
   return commandContext()
 }
 
@@ -28,11 +31,13 @@ export function useKeyboardShortcuts(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) return
+      if (isTyping(event.target) || event.altKey) return
       // Space on a focused button presses that button.
       if (event.key === ' ' && event.target instanceof HTMLButtonElement) return
+      const ctrl = event.ctrlKey || event.metaKey
+      const key = `${ctrl ? 'ctrl+' : ''}${ctrl && event.shiftKey ? 'shift+' : ''}${event.key.toLowerCase()}`
       const ctx = commandContext()
-      const command = commandForKey(event.key.toLowerCase(), ctx)
+      const command = commandForKey(key, ctx)
       if (!command || !isEnabled(command, ctx)) return
       command.run(ctx)
       event.preventDefault()

@@ -1,5 +1,5 @@
 // Default keyboard shortcuts by command id, as `KeyboardEvent.key` in lower
-// case. Kept apart from the commands (which need Cornerstone) so they can be
+// case, after "ctrl+" (Ctrl or ⌘) and "shift+" (only together with Ctrl). Kept apart from the commands (which need Cornerstone) so they can be
 // checked for conflicts, and later customised by the user.
 
 const TOOL_KEYS: Record<string, string> = {
@@ -15,6 +15,11 @@ const TOOL_KEYS: Record<string, string> = {
   angle: 'a',
   ellipse: 'e',
   probe: 'b',
+  rectangle: 'q',
+  polygon: 'y',
+  freehand: 'n',
+  bidirectional: 'j',
+  arrow: 'u',
 }
 
 export const DEFAULT_KEYMAP: Record<string, string[]> = {
@@ -38,6 +43,11 @@ export const DEFAULT_KEYMAP: Record<string, string[]> = {
   'video.previousFrame': ['arrowleft', 'arrowup'],
   'video.nextFrame': ['arrowright', 'arrowdown'],
   'panel.tags': ['t'],
+  'panel.measurements': ['x'],
+  // Backspace stays with Cornerstone: it removes the last point of a contour being drawn.
+  'measure.deleteSelected': ['delete'],
+  'measure.undo': ['ctrl+z'],
+  'measure.redo': ['ctrl+shift+z', 'ctrl+y'],
 }
 
 /**

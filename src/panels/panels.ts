@@ -15,4 +15,9 @@ export const PANELS: Record<PanelId, PanelDefinition> = {
     title: 'tags.title',
     component: lazy(() => import('../components/TagPanel').then((m) => ({ default: m.TagPanel }))),
   },
+  measurements: {
+    id: 'measurements',
+    title: 'measure.panelTitle',
+    component: lazy(() => import('../components/MeasurementPanel').then((m) => ({ default: m.MeasurementPanel }))),
+  },
 }

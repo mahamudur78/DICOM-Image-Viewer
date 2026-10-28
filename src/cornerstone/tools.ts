@@ -1,13 +1,20 @@
 import {
   AngleTool,
+  ArrowAnnotateTool,
+  BidirectionalTool,
+  CircleROITool,
+  CobbAngleTool,
   CrosshairsTool,
   EllipticalROITool,
   Enums as ToolEnums,
+  LabelTool,
   LengthTool,
   MagnifyTool,
   OrientationMarkerTool,
   PanTool,
+  PlanarFreehandROITool,
   ProbeTool,
+  RectangleROITool,
   ReferenceLinesTool,
   ScaleOverlayTool,
   StackScrollTool,
@@ -16,6 +23,19 @@ import {
   WindowLevelTool,
   ZoomTool,
 } from '@cornerstonejs/tools'
+import {
+  CalibrationTool,
+  CurveTool,
+  DeviationTool,
+  EllipsoidTool,
+  LengthRatioTool,
+  PencilTool,
+  PolygonTool,
+  PolylineTool,
+  RedactionTool,
+  SpineLabelTool,
+  toolConfiguration,
+} from '../measurements/tools'
 import { RegionWindowTool } from './regionWindowTool'
 
 const { MouseBindings } = ToolEnums
@@ -44,15 +64,59 @@ export const PRIMARY_TOOLS = {
   angle: AngleTool.toolName,
   ellipse: EllipticalROITool.toolName,
   probe: ProbeTool.toolName,
+  rectangle: RectangleROITool.toolName,
+  circle: CircleROITool.toolName,
+  polygon: PolygonTool.toolName,
+  polyline: PolylineTool.toolName,
+  curve: CurveTool.toolName,
+  freehand: PlanarFreehandROITool.toolName,
+  pencil: PencilTool.toolName,
+  bidirectional: BidirectionalTool.toolName,
+  cobb: CobbAngleTool.toolName,
+  arrow: ArrowAnnotateTool.toolName,
+  label: LabelTool.toolName,
+  spine: SpineLabelTool.toolName,
+  deviation: DeviationTool.toolName,
+  ratio: LengthRatioTool.toolName,
+  ellipsoid: EllipsoidTool.toolName,
+  redaction: RedactionTool.toolName,
+  calibrate: CalibrationTool.toolName,
 } as const
 
 export type PrimaryTool = keyof typeof PRIMARY_TOOLS
 
-const MEASUREMENTS: PrimaryTool[] = ['length', 'angle', 'ellipse', 'probe']
+/** Annotation tools on images and MPR planes. */
+export const MEASUREMENTS: PrimaryTool[] = [
+  'length',
+  'angle',
+  'ellipse',
+  'probe',
+  'rectangle',
+  'circle',
+  'polygon',
+  'polyline',
+  'curve',
+  'freehand',
+  'pencil',
+  'bidirectional',
+  'cobb',
+  'arrow',
+  'label',
+  'spine',
+  'deviation',
+  'ratio',
+  'ellipsoid',
+]
+
+/** Only on images: redaction hides burned-in text, calibration sets an image's spacing. */
+const IMAGE_ONLY: PrimaryTool[] = ['redaction', 'calibrate']
+
+/** Tools that finish a drawing with a double-click, which must not also maximize the viewport. */
+export const DOUBLE_CLICK_TOOLS: PrimaryTool[] = ['polygon', 'polyline', 'curve', 'arrow', 'label', 'spine']
 
 /** Which toolbar tools exist in each view mode's tool group. */
 const GROUP_TOOLS: Record<string, PrimaryTool[]> = {
-  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', ...MEASUREMENTS],
+  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', ...MEASUREMENTS, ...IMAGE_ONLY],
   [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', ...MEASUREMENTS],
   [VR_TOOL_GROUP_ID]: ['rotate', 'shift', 'pan', 'zoom'],
 }
@@ -61,7 +125,7 @@ function setupToolGroup(id: string) {
   ToolGroupManager.destroyToolGroup(id)
   const toolGroup = ToolGroupManager.createToolGroup(id)!
   const tools = GROUP_TOOLS[id]
-  for (const tool of tools) toolGroup.addTool(PRIMARY_TOOLS[tool])
+  for (const tool of tools) toolGroup.addTool(PRIMARY_TOOLS[tool], toolConfiguration(PRIMARY_TOOLS[tool]))
 
   // Fixed bindings that work regardless of the selected toolbar tool.
   toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
@@ -69,7 +133,7 @@ function setupToolGroup(id: string) {
 
   // Measurements stay visible and editable when another tool is selected.
   for (const tool of tools) {
-    if (MEASUREMENTS.includes(tool)) toolGroup.setToolPassive(PRIMARY_TOOLS[tool])
+    if (MEASUREMENTS.includes(tool) || IMAGE_ONLY.includes(tool)) toolGroup.setToolPassive(PRIMARY_TOOLS[tool])
   }
   return toolGroup
 }

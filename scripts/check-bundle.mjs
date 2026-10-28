@@ -12,8 +12,9 @@ const BUDGETS = {
   // JS needed to show the welcome page (index.html's script and its preloads).
   initial: 120,
   // Any single lazy chunk (the Cornerstone/vtk.js runtime is the largest).
-  // Phase 2 raised it from 900 for the 2D display features in that chunk.
-  chunk: 960,
+  // Phase 2 raised it from 900 for the 2D display features in that chunk;
+  // phase 3 to 1024 for the measurement tools, which register when it loads.
+  chunk: 1024,
   // All JS, including chunks that load only for MPR/3D or for particular
   // formats (pdf.js and its worker, ZIP, TIFF, MP4 muxing). Phase 1 raised it
   // from 1300 for those format chunks; none of them load for ordinary DICOM images.

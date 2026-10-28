@@ -1,14 +1,10 @@
 import { cache, init as coreInit } from '@cornerstonejs/core'
 import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader'
 import {
-  AngleTool,
   CrosshairsTool,
-  EllipticalROITool,
-  LengthTool,
   MagnifyTool,
   OrientationMarkerTool,
   PanTool,
-  ProbeTool,
   ReferenceLinesTool,
   ScaleOverlayTool,
   StackScrollTool,
@@ -19,6 +15,8 @@ import {
   init as toolsInit,
 } from '@cornerstonejs/tools'
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
+import { installMeasurementEvents } from '../measurements/manage'
+import { MEASUREMENT_TOOLS } from '../measurements/tools'
 import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
 import { RegionWindowTool } from './regionWindowTool'
@@ -54,10 +52,7 @@ export function initCornerstone(): Promise<void> {
       ZoomTool,
       MagnifyTool,
       StackScrollTool,
-      LengthTool,
-      AngleTool,
-      EllipticalROITool,
-      ProbeTool,
+      ...MEASUREMENT_TOOLS.map((tool) => tool.Class as Parameters<typeof addTool>[0]),
       ReferenceLinesTool,
       CrosshairsTool,
       TrackballRotateTool,
@@ -67,6 +62,7 @@ export function initCornerstone(): Promise<void> {
       addTool(tool)
     }
     createToolGroups()
+    installMeasurementEvents()
     registerVolumeLoaders()
     createSynchronizers()
 

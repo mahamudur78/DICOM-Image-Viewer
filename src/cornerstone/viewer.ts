@@ -144,25 +144,33 @@ export function resetView(viewportId: string) {
   viewport.render()
 }
 
-/** Downloads the current image (without measurement overlays) as PNG. */
 /**
  * Downloads the current image (without measurement overlays) as PNG. A CSS
  * filter (the viewport's image filter) is applied to the export too; browsers
- * without canvas filters (Safari) export the unfiltered image.
+ * without canvas filters (Safari) export the unfiltered image. Redacted areas
+ * (polygons in CSS pixels) are painted black.
  */
-export function downloadPng(viewportId: string, fileName: string, cssFilter = '') {
+export function downloadPng(viewportId: string, fileName: string, cssFilter = '', redactions: Types.Point2[][] = []) {
   const viewport = getViewport(viewportId)
   if (!viewport) return
   viewport.render()
   let canvas = viewport.getCanvas()
-  if (cssFilter) {
-    const filtered = document.createElement('canvas')
-    filtered.width = canvas.width
-    filtered.height = canvas.height
-    const context = filtered.getContext('2d')!
-    context.filter = cssFilter
+  if (cssFilter || redactions.length) {
+    const copy = document.createElement('canvas')
+    copy.width = canvas.width
+    copy.height = canvas.height
+    const context = copy.getContext('2d')!
+    context.filter = cssFilter || 'none'
     context.drawImage(canvas, 0, 0)
-    canvas = filtered
+    context.filter = 'none'
+    const scale = canvas.width / (canvas.clientWidth || canvas.width)
+    context.fillStyle = '#000'
+    for (const polygon of redactions) {
+      context.beginPath()
+      polygon.forEach(([x, y], i) => (i ? context.lineTo(x * scale, y * scale) : context.moveTo(x * scale, y * scale)))
+      context.fill()
+    }
+    canvas = copy
   }
   const link = document.createElement('a')
   link.href = canvas.toDataURL('image/png')

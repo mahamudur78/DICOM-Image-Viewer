@@ -6,7 +6,7 @@ import { applyDicomdir, referencedFiles } from './dicomdir'
 import { isDicomdirPath, sniffFile, type ImageFormat } from './fileType'
 import { framesOf, frameOfReference } from './frames'
 import { decodedText, number, numbers, readHeader, text } from './header'
-import { clearImagePlanes, recordFrameLuts, recordImagePlane, recordScaling } from './imagePlaneMetadata'
+import { clearImagePlanes, recordFrameLuts, recordImagePlane, recordImagerSpacing, recordScaling } from './imagePlaneMetadata'
 import { imageToDicom, newImportStudy } from './imageImport'
 import {
   formatDate,
@@ -275,12 +275,16 @@ function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser
   const columns = dataSet.uint16('x00280011') ?? 0
   const frameCount = Math.max(1, number(dataSet, 'x00280008') ?? 1)
   const frameOfReferenceUID = frameOfReference(dataSet)
+  // Radiographs measured at the detector only (see recordImagerSpacing).
+  const imagerSpacing = numbers(dataSet, 'x00280030') ? undefined : numbers(dataSet, 'x00181164')
+  const magnification = number(dataSet, 'x00181114')
 
   const imageIds: string[] = []
   framesOf(dataSet, frameCount).forEach((frame, i) => {
     const imageId = frameCount > 1 ? `${baseImageId}?frame=${i + 1}` : baseImageId
     recordImagePlane(imageId, { ...frame, rows, columns, frameOfReferenceUID })
     recordFrameLuts(imageId, frame)
+    if (imagerSpacing?.length === 2) recordImagerSpacing(imageId, imagerSpacing, magnification)
     imageIds.push(imageId)
     draft.series.images.push({
       ...base,

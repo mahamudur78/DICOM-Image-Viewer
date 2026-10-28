@@ -10,9 +10,10 @@ export interface MenuSection {
 }
 
 /** Groups whose commands are choices (one is active) or toggles, shown with a check mark. */
-const CHECKED_GROUPS: CommandGroup[] = ['sort', 'colormap', 'filter', 'image', 'display']
+const CHECKED_GROUPS: CommandGroup[] = ['tool', 'sort', 'colormap', 'filter', 'image', 'display', 'measure']
 
-const keyLabel = (key: string) => (key === ' ' ? 'Space' : key === 'escape' ? 'Esc' : key.toUpperCase())
+const keyLabel = (key: string) =>
+  key === ' ' ? 'Space' : key === 'escape' ? 'Esc' : key === 'delete' ? 'Del' : key.replace('ctrl+', 'Ctrl+').replace('shift+', 'Shift+').replace(/[a-z]$/, (c) => c.toUpperCase())
 
 /**
  * A menu of commands at a screen position, kept inside the window. Closes on
@@ -98,7 +99,7 @@ export function CommandMenu({ x, y, sections, label, onClose }: { x: number; y: 
                   {checkable ? (checked ? '✓' : '') : command.group === 'panel' ? '🏷' : command.icon}
                 </span>
                 <span className="flex-1">{t(command.label, command.labelValues)}</span>
-                {key && key.length <= 6 && !key.startsWith('arrow') && <kbd className="text-xs text-slate-500">{keyLabel(key)}</kbd>}
+                {key && key.length <= 12 && !key.startsWith('arrow') && <kbd className="text-xs text-slate-500">{keyLabel(key)}</kbd>}
               </button>
             )
           })}

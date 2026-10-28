@@ -161,8 +161,8 @@ function WindowSelect({ viewportId, ctx }: { viewportId: string; ctx: CommandCon
   )
 }
 
-/** A toolbar button opening a menu of commands below it. */
-function MenuButton({ label, icon, sections }: { label: string; icon: ReactNode; sections: MenuSection[] }) {
+/** A toolbar button opening a menu of commands below it; shown pressed when one of its choices is active. */
+function MenuButton({ label, icon, sections, active = false }: { label: string; icon: ReactNode; sections: MenuSection[]; active?: boolean }) {
   const { t } = useTranslation()
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
   const close = useCallback(() => setAnchor(null), [])
@@ -173,11 +173,14 @@ function MenuButton({ label, icon, sections }: { label: string; icon: ReactNode;
         aria-label={t(label)}
         aria-haspopup="menu"
         aria-expanded={anchor !== null}
+        aria-pressed={active || undefined}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect()
           setAnchor(anchor ? null : { x: rect.left, y: rect.bottom + 4 })
         }}
-        className="flex h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white"
+        className={`flex h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold ${
+          active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+        }`}
       >
         {icon}
         <span aria-hidden>▾</span>
@@ -215,6 +218,35 @@ const IMAGE_MENU: MenuSection[] = [
   { title: 'menus.filter', commands: ['filter.none', ...FILTERS.map((type) => `filter.${type}`)] },
   { title: 'menus.strength', commands: ['filter.strength1', 'filter.strength2', 'filter.strength3'] },
 ]
+
+const MEASURE_MENU: MenuSection[] = [
+  {
+    title: 'menus.lines',
+    commands: ['tool.length', 'tool.polyline', 'tool.angle', 'tool.cobb', 'tool.bidirectional', 'tool.deviation', 'tool.ratio', 'tool.ellipsoid'],
+  },
+  { title: 'menus.areas', commands: ['tool.rectangle', 'tool.ellipse', 'tool.circle', 'tool.polygon', 'tool.curve', 'tool.freehand', 'tool.probe'] },
+  { title: 'menus.annotate', commands: ['tool.arrow', 'tool.label', 'tool.spine', 'measure.spineStart', 'tool.pencil', 'tool.redaction'] },
+  { title: 'menus.calibration', commands: ['tool.calibrate', 'measure.clearCalibration', 'measure.unitMm', 'measure.unitCm'] },
+  {
+    title: 'menus.manage',
+    commands: [
+      'panel.measurements',
+      'measure.undo',
+      'measure.redo',
+      'measure.copy',
+      'measure.paste',
+      'measure.toggleHidden',
+      'measure.deleteSelected',
+      'measure.deleteImage',
+      'measure.deleteSeries',
+      'measure.deleteAll',
+    ],
+  },
+  { title: 'menus.export', commands: ['measure.copyValues', 'measure.exportCsv', 'measure.saveJson', 'measure.loadJson'] },
+]
+
+/** Tools chosen from the Measure menu (the toolbar has buttons for the others). */
+const MENU_TOOLS = new Set(MEASURE_MENU.flatMap((section) => section.commands).filter((id) => id.startsWith('tool.') && !getCommand(id).icon))
 
 /** More layouts: common presets and a rows × columns grid to pick from. */
 function LayoutPicker() {
@@ -358,6 +390,17 @@ export function Toolbar() {
       grayscale && <WindowSelect key="window" viewportId={viewportId!} ctx={ctx} />,
       is2d && <MenuButton key="view-menu" label="menus.view" icon={t('menus.viewShort')} sections={VIEW_MENU} />,
       is2d && <MenuButton key="image-menu" label="menus.image" icon={t('menus.imageShort')} sections={IMAGE_MENU} />,
+    ],
+    [
+      mode !== '3d' && (
+        <MenuButton
+          key="measure-menu"
+          label="menus.measure"
+          icon={t('menus.measureShort')}
+          sections={MEASURE_MENU}
+          active={MENU_TOOLS.has(`tool.${ctx.state.activeTool}`)}
+        />
+      ),
     ],
     [
       ...groupButtons(['mode'], ctx),

@@ -39,7 +39,9 @@ import { changeCineFps, cineStateFor, setCinePlaying, toggleCine } from '../stor
 import { useSettings, type DisplaySettings, type LinkSettings } from '../store/settingsStore'
 import { changeMode, resetTargetViewport } from '../store/viewerActions'
 import { videoControllers } from '../video/videoControllers'
+import { redactionPolygons } from '../measurements/manage'
 import { DEFAULT_KEYMAP } from './keymap'
+import { measureCommands } from './measureCommands'
 import {
   selectMode,
   selectTargetViewportId,
@@ -79,6 +81,7 @@ export type CommandGroup =
   | 'layout'
   | 'link'
   | 'panel'
+  | 'measure'
 
 export interface Command {
   id: string
@@ -117,7 +120,8 @@ const onViewport = (action: (viewportId: string) => void) => (ctx: CommandContex
   if (ctx.viewportId) action(ctx.viewportId)
 }
 
-const TOOLS: { tool: PrimaryTool; icon: string }[] = [
+/** Tools without an icon are offered in the toolbar's Measure menu instead of as buttons. */
+const TOOLS: { tool: PrimaryTool; icon?: string }[] = [
   { tool: 'windowLevel', icon: '◐' },
   { tool: 'windowRegion', icon: '▣' },
   { tool: 'rotate', icon: '⟳' },
@@ -130,6 +134,27 @@ const TOOLS: { tool: PrimaryTool; icon: string }[] = [
   { tool: 'angle', icon: '∠' },
   { tool: 'ellipse', icon: '◯' },
   { tool: 'probe', icon: '⌖' },
+  ...(
+    [
+      'rectangle',
+      'circle',
+      'polygon',
+      'polyline',
+      'curve',
+      'freehand',
+      'pencil',
+      'bidirectional',
+      'cobb',
+      'arrow',
+      'label',
+      'spine',
+      'deviation',
+      'ratio',
+      'ellipsoid',
+      'redaction',
+      'calibrate',
+    ] as const
+  ).map((tool) => ({ tool })),
 ]
 
 const toolCommands: Command[] = TOOLS.map(({ tool, icon }) => ({
@@ -229,7 +254,7 @@ const viewCommands: Command[] = [
     isEnabled: hasViewport,
     run: onViewport((id) => {
       const filter = getFilter(id)
-      downloadPng(id, 'dicom-image.png', filter ? `url(#${filterElementId(filter)})` : '')
+      downloadPng(id, 'dicom-image.png', filter ? `url(#${filterElementId(filter)})` : '', redactionPolygons(id))
     }),
   },
 ]
@@ -654,6 +679,7 @@ const ALL_COMMANDS: Command[] = [
   ...layoutCommands,
   ...linkCommands,
   ...panelCommands,
+  ...measureCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

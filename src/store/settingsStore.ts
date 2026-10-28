@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import type { LengthUnit } from '../measurements/geometry'
 import { safeStorage } from './safeStorage'
 
 /** Viewport linking options toggled from the toolbar. */
@@ -47,6 +48,8 @@ export interface Settings {
   presets: UserPreset[]
   /** Screen resolution for "actual size" zoom; 96 is the CSS reference pixel. */
   screenDpi: number
+  /** Unit of measured lengths, areas and volumes. */
+  measureUnit: LengthUnit
 }
 
 export const SETTINGS_KEY = 'dicomlens-settings'
@@ -71,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   presets: [],
   screenDpi: 96,
+  measureUnit: 'mm',
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -104,6 +108,7 @@ export function migrateSettings(stored: unknown): Settings {
     display: { ...DEFAULT_SETTINGS.display, ...pickBooleans(value.display) },
     presets: Array.isArray(value.presets) ? value.presets.filter(validPreset) : [],
     screenDpi: dpi >= 50 && dpi <= 600 ? dpi : DEFAULT_SETTINGS.screenDpi,
+    measureUnit: value.measureUnit === 'cm' ? 'cm' : 'mm',
   }
 }
 
@@ -117,6 +122,7 @@ interface SettingsState extends Settings {
   /** Moves a preset up (-1) or down (+1) among those of its modality. */
   movePreset: (id: string, direction: -1 | 1) => void
   setScreenDpi: (dpi: number) => void
+  setMeasureUnit: (unit: LengthUnit) => void
 }
 
 let presetCounter = 0
@@ -147,12 +153,20 @@ export const useSettings = create<SettingsState>()(
           return { presets }
         }),
       setScreenDpi: (screenDpi) => set({ screenDpi }),
+      setMeasureUnit: (measureUnit) => set({ measureUnit }),
     }),
     {
       name: SETTINGS_KEY,
       version: SETTINGS_VERSION,
       storage: createJSONStorage(safeStorage),
-      partialize: ({ language, links, display, presets, screenDpi }): Settings => ({ language, links, display, presets, screenDpi }),
+      partialize: ({ language, links, display, presets, screenDpi, measureUnit }): Settings => ({
+        language,
+        links,
+        display,
+        presets,
+        screenDpi,
+        measureUnit,
+      }),
       migrate: (stored) => migrateSettings(stored),
       merge: (stored, current) => ({ ...current, ...migrateSettings(stored) }),
     },

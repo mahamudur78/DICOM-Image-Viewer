@@ -8,7 +8,7 @@ test('right click opens the viewport menu; right drag still zooms', async ({ pag
   await target.click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Viewport actions' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveCount(13)
+  await expect(menu.getByRole('menuitem')).toHaveCount(19)
   await expect(menu.getByRole('menuitemradio')).toHaveCount(4)
   await expect(menu.getByRole('menuitemradio', { name: 'Instance number' })).toHaveAttribute('aria-checked', 'true')
 

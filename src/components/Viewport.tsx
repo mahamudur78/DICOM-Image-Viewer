@@ -2,6 +2,7 @@ import { Enums } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { applyModalityDefaults } from '../cornerstone/display'
+import { DOUBLE_CLICK_TOOLS } from '../cornerstone/tools'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import {
   getViewport,
@@ -16,6 +17,7 @@ import type { DisplaySet } from '../dicom/types'
 import { notify } from '../notifications/toastStore'
 import { useSettings } from '../store/settingsStore'
 import { filterElementId, useViewportDisplay } from '../store/viewportDisplayStore'
+import { useViewer } from '../store/viewerStore'
 import { CineControls } from './CineControls'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
@@ -157,7 +159,10 @@ export function Viewport({
       }}
       onPointerUpCapture={contextMenu.onPointerUpCapture}
       onWheelCapture={active ? undefined : onActivate}
-      onDoubleClick={onToggleMaximize}
+      onDoubleClick={() => {
+        // These tools finish drawing (or edit text) with a double-click.
+        if (!DOUBLE_CLICK_TOOLS.includes(useViewer.getState().activeTool)) onToggleMaximize()
+      }}
       onContextMenu={contextMenu.onContextMenu}
     >
       <div

@@ -38,6 +38,8 @@
 | `images/` | PNG, JPEG, BMP, GIF, ১×১ WebP, দুই পাতার TIFF | সাধারণ ছবি → Secondary Capture |
 | `sort/` | ৫টা slice; instance, position, সময় আর নামের ক্রম আলাদা | সাজানোর চারটা বিকল্প |
 | `edge/blank.dcm` | পুরো একরঙা ছবি | শূন্য-প্রস্থ W/L এড়ানো |
+| `measure/dx_ermf.dcm` | DX, শুধু Imager Pixel Spacing 0.2 আর ERMF 1.25; 100×100, মাঝে 40×40 বর্গ (মান 1000, বাকি 100) | ERMF-সংশোধিত মাপ (0.16 mm/pixel), ROI পরিসংখ্যান, redaction export |
+| `measure/us_region.dcm` | US, একই ছবি, পুরোটা জুড়ে একটা region (0.05 cm/pixel) | আল্ট্রাসাউন্ড region calibration |
 
 **বড় স্টাডি:** `scripts/generate-large-study.mjs <dir> [count]` ২০০০টা 64×64 slice বানায় (`e2e/.data/large`)। E2E এটা খুলতে কত সময় লাগে মাপে (2026-10-28: ৪.৮ সেকেন্ড)।
 

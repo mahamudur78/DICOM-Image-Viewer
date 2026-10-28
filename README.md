@@ -35,6 +35,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/commands/` | Every user action; the toolbar, keyboard shortcuts and context menu are built from it |
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
+| `src/measurements/` | Measurement tools, their values (calibration, statistics), groups, panel actions, JSON/CSV |
 | `src/components/`, `src/panels/` | React UI; side panels are registered in `src/panels/panels.ts` |
 | `src/notifications/` | Toasts and error boundaries |
 | `src/i18n/` | Translations (`locales/en.ts` defines every key) |
@@ -56,7 +57,6 @@ separate chunk that starts downloading right after the first render.
 - Names in any DICOM character set (UTF-8, Latin, Cyrillic, Arabic, CJK, …); a list of files that
   could not be opened, with the reason
 - Window/level, pan, zoom, scroll (wheel, arrows, slider)
-- Length, angle, ellipse ROI and probe measurements
 - CT window presets, invert, rotate, flip, reset, PNG export
 - DICOM tag inspector with search
 - Compressed transfer syntaxes via WASM codecs (JPEG, JPEG 2000, JPEG-LS, HTJ2K, JPEG XL)
@@ -74,7 +74,15 @@ separate chunk that starts downloading right after the first render.
 - Colormaps, image filters (sharpen, smooth, edges, emboss, erode, dilate), DICOM overlay planes,
   rotation (90°/180°/any angle), zoom 1:1 / % / actual size, pixel smoothing, scale bar
 - Layouts up to 4×4, full screen, images-only mode, privacy mode and configurable corner text
+- Measurements: length, polyline, angle, Cobb angle, bidirectional, deviation distance, length
+  ratio, ellipsoid volume; rectangle, ellipse, circle, polygon, spline and freehand ROIs with mean,
+  median, min, max, SD, area, pixel count and a histogram; probe; arrows, labels, spine labels,
+  pencil and redaction boxes (also black in PNG exports). Also on MPR planes
+- Calibration: Pixel Spacing, detector spacing corrected by the magnification factor (ERMF),
+  ultrasound regions, or a line of known length; values in mm or cm, with the source shown
+- Measurements panel: jump to the image, label, colour, hide, delete (image / series / all), undo
+  and redo, copy onto another slice, copy values, CSV export, save and load as JSON
 
-Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
+Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `X` measurements panel · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

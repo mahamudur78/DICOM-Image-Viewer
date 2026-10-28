@@ -14,6 +14,8 @@
 //   overlay/    images with DICOM overlay planes (single and multi-frame)
 //   sort/       five slices whose instance, position, time and file name orders all differ;
 //               the first pixel holds the slice's label (100, 200, …) so tests can tell them apart
+//   measure/    DX with Imager Pixel Spacing and magnification (ERMF), ultrasound with a
+//               calibrated region; both hold a 40 × 40 pixel square of value 1000 on 100
 //
 // Usage: node scripts/generate-samples.mjs <output-dir>
 import { execFileSync } from 'node:child_process'
@@ -32,7 +34,7 @@ import {
 } from './dicom-writer.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '11'
+export const SAMPLES_VERSION = '12'
 
 const root = process.argv[2]
 if (!root) {
@@ -857,6 +859,73 @@ if (hasFfmpeg) {
       ...grayscale16(size, size),
       ...overlay([...square(4), ...square(20)], 2),
       element(0x7fe0, 0x0010, 'OW', gray(2)),
+    ],
+  })
+}
+
+// --- measurement calibration ---------------------------------------------------
+{
+  outDir = dir('measure')
+  const size = 100
+  // A 40 × 40 square (columns and rows 30–69) of 1000 on a background of 100.
+  const pixels = Array.from({ length: size * size }, (_, i) => {
+    const [x, y] = [i % size, Math.floor(i / size)]
+    return x >= 30 && x < 70 && y >= 30 && y < 70 ? 1000 : 100
+  })
+  writeDicomFile(join(outDir, 'dx_ermf.dcm'), {
+    sopClassUID: SOP.dx,
+    sopInstanceUID: `${ROOT}.15.1`,
+    elements: [
+      ...patient('Sample^Calibration', 'SAMPLE-CAL'),
+      ...study(`${ROOT}.15`, 'Calibration'),
+      element(0x0008, 0x0060, 'CS', 'DX'),
+      element(0x0008, 0x103e, 'LO', 'DX with magnification'),
+      // 0.2 mm at the detector, magnified 1.25 times: 0.16 mm in the patient.
+      element(0x0018, 0x1114, 'DS', 1.25),
+      element(0x0018, 0x1164, 'DS', '0.2\\0.2'),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.15.100`),
+      element(0x0020, 0x0011, 'IS', 1),
+      element(0x0020, 0x0013, 'IS', 1),
+      ...grayscale16(size, size),
+      element(0x0028, 0x1050, 'DS', 550),
+      element(0x0028, 0x1051, 'DS', 1200),
+      element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
+    ],
+  })
+  const ul = (elem, value) => element(0x0018, elem, 'UL', value)
+  const us = (elem, value) => element(0x0018, elem, 'US', value)
+  const fd = (elem, value) => element(0x0018, elem, 'FD', new Uint8Array(new Float64Array([value]).buffer))
+  writeDicomFile(join(outDir, 'us_region.dcm'), {
+    sopClassUID: '1.2.840.10008.5.1.4.1.1.6.1',
+    sopInstanceUID: `${ROOT}.16.1`,
+    elements: [
+      ...patient('Sample^Calibration', 'SAMPLE-CAL'),
+      ...study(`${ROOT}.15`, 'Calibration'),
+      element(0x0008, 0x0060, 'CS', 'US'),
+      element(0x0008, 0x103e, 'LO', 'US with region'),
+      // One 2D region covering the image: 0.05 cm (0.5 mm) per pixel.
+      element(0x0018, 0x6011, 'SQ', [
+        item(
+          us(0x6012, 1),
+          us(0x6014, 1),
+          ul(0x6016, 0),
+          ul(0x6018, 0),
+          ul(0x601a, 0),
+          ul(0x601c, size - 1),
+          ul(0x601e, size - 1),
+          us(0x6024, 3),
+          us(0x6026, 3),
+          fd(0x602c, 0.05),
+          fd(0x602e, 0.05),
+        ),
+      ]),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.16.100`),
+      element(0x0020, 0x0011, 'IS', 2),
+      element(0x0020, 0x0013, 'IS', 1),
+      ...grayscale16(size, size),
+      element(0x0028, 0x1050, 'DS', 550),
+      element(0x0028, 0x1051, 'DS', 1200),
+      element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
     ],
   })
 }

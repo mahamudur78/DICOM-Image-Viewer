@@ -25,7 +25,7 @@ export interface Slab {
 }
 
 /** Side panels; later phases add measurements, segmentation, reports, … */
-export type PanelId = 'tags'
+export type PanelId = 'tags' | 'measurements'
 
 /**
  * Session state of the viewer: what is loaded and how it is laid out.

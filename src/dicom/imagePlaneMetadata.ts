@@ -76,10 +76,38 @@ export function recordScaling(imageId: string, factors: { suvbw: number; suvlbm?
 
 export const getScaling = (imageId: string) => scaling.get(imageId)
 
+/**
+ * Imager Pixel Spacing (0018,1164) of projection radiographs that have no
+ * Pixel Spacing, with the Estimated Radiographic Magnification Factor
+ * (0018,1114) when known. Spacing at the detector is larger than in the
+ * patient; dividing by the magnification estimates the patient plane.
+ */
+const imagerSpacing = new Map<string, { spacing: number[]; magnification?: number }>()
+
+export function recordImagerSpacing(imageId: string, spacing: number[], magnification?: number) {
+  imagerSpacing.set(imageId, { spacing, magnification: magnification && magnification > 0 ? magnification : undefined })
+}
+
+/** Where an image's pixel spacing comes from: the image plane, the detector (corrected or not), or nowhere. */
+export type SpacingSource = 'pixel' | 'ermf' | 'imager' | 'none'
+
+export function spacingSource(imageId: string): SpacingSource {
+  const plane = metaData.get('imagePlaneModule', imageId) as { usingDefaultValues?: boolean; rowPixelSpacing?: number } | undefined
+  if (!plane || plane.usingDefaultValues || !(plane.rowPixelSpacing! > 0)) return 'none'
+  const imager = imagerSpacing.get(imageId)
+  return imager && !hasOwnSpacing(imageId) ? (imager.magnification ? 'ermf' : 'imager') : 'pixel'
+}
+
+const hasOwnSpacing = (imageId: string) => {
+  const module = wadouri.metaData.metaDataProvider('imagePlaneModule', imageId) as { rowPixelSpacing?: number; usingDefaultValues?: boolean } | undefined
+  return (module?.rowPixelSpacing ?? 0) > 0 && !module?.usingDefaultValues
+}
+
 export function clearImagePlanes() {
   planes.clear()
   frameLuts.clear()
   scaling.clear()
+  imagerSpacing.clear()
 }
 
 /** Lower than the loader's provider (0), so loaded images keep their own metadata. */
@@ -123,15 +151,20 @@ function fixedVoiLutModule(imageId: string) {
  * Images without position and orientation (radiographs, ultrasound, scans)
  * get the default plane the viewport already draws them in, so tools that
  * convert between image and world coordinates (measurements, ROI window)
- * work on them too. Pixel spacing is kept when present; otherwise 1 (pixels).
+ * work on them too. Pixel spacing is kept when present, else taken from the
+ * detector (Imager Pixel Spacing ÷ magnification); otherwise 1 (pixels).
  */
 function defaultPlane(imageId: string) {
   const module = wadouri.metaData.metaDataProvider('imagePlaneModule', imageId) as
     | (Partial<ImagePlane> & { imageOrientationPatient?: number[] })
     | undefined
   if (!module || module.imageOrientationPatient?.length === 6) return undefined
-  const rowSpacing = module.rowPixelSpacing || 1
-  const columnSpacing = module.columnPixelSpacing || 1
+  const own = (module.rowPixelSpacing ?? 0) > 0 && !(module as { usingDefaultValues?: boolean }).usingDefaultValues
+  const imager = own ? undefined : imagerSpacing.get(imageId)
+  const hasSpacing = own || imager !== undefined
+  const magnification = imager?.magnification ?? 1
+  const rowSpacing = own ? module.rowPixelSpacing! : imager ? imager.spacing[0] / magnification : 1
+  const columnSpacing = own ? module.columnPixelSpacing! : imager ? imager.spacing[1] / magnification : 1
   return {
     ...module,
     imageOrientationPatient: [1, 0, 0, 0, 1, 0],
@@ -141,6 +174,7 @@ function defaultPlane(imageId: string) {
     rowPixelSpacing: rowSpacing,
     columnPixelSpacing: columnSpacing,
     pixelSpacing: [rowSpacing, columnSpacing],
-    usingDefaultValues: true,
+    // Only the spacing decides whether lengths are in mm; the default plane itself is harmless.
+    usingDefaultValues: !hasSpacing,
   }
 }

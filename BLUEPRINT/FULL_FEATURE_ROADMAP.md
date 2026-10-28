@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–২ সম্পন্ন, ফেজ ৩ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৩ সম্পন্ন, ফেজ ৪ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -120,46 +120,46 @@
 ## ফেজ ৩: মাপজোখ ও annotation
 
 **টুল**
-- [ ] Rectangle ROI
-- [ ] Circle ROI
-- [ ] Polygon (বন্ধ): ক্ষেত্রফল, পরিধি
-- [ ] Open polyline: দৈর্ঘ্য
-- [ ] Freehand ROI (বন্ধ) আর freehand open curve
-- [ ] Spline ROI / curve
-- [ ] Bidirectional (দীর্ঘ ও ছোট অক্ষ, RECIST)
-- [ ] Cobb angle
-- [ ] Deviation distance (একটা রেখা থেকে বিন্দুর দূরত্ব)
-- [ ] Length ratio (দুটো দৈর্ঘ্যের অনুপাত, যেমন cardiothoracic ratio)
-- [ ] Ellipsoid volume (তিন অক্ষ থেকে আয়তন)
-- [ ] Arrow + লেখা (annotation)
-- [ ] শুধু লেখা (text label)
-- [ ] ফ্রিহ্যান্ড পেন্সিল ড্রয়িং
-- [ ] Spine labeling (C1…S1 স্বয়ংক্রিয় ক্রমে)
-- [ ] Hidden area / redaction box (ছবির অংশ ঢাকা; export-এও ঢাকা থাকবে)
-- [ ] পুরনো টুলগুলোর মান ঠিক আছে কিনা পুনরায় যাচাই (length, angle, ellipse, probe)
+- [x] Rectangle ROI
+- [x] Circle ROI
+- [x] Polygon (বন্ধ): ক্ষেত্রফল, পরিধি
+- [x] Open polyline: দৈর্ঘ্য
+- [x] Freehand ROI (বন্ধ) আর freehand open curve
+- [x] Spline ROI / curve
+- [x] Bidirectional (দীর্ঘ ও ছোট অক্ষ, RECIST)
+- [x] Cobb angle
+- [x] Deviation distance (একটা রেখা থেকে বিন্দুর দূরত্ব)
+- [x] Length ratio (দুটো দৈর্ঘ্যের অনুপাত, যেমন cardiothoracic ratio)
+- [x] Ellipsoid volume (তিন অক্ষ থেকে আয়তন)
+- [x] Arrow + লেখা (annotation)
+- [x] শুধু লেখা (text label)
+- [x] ফ্রিহ্যান্ড পেন্সিল ড্রয়িং
+- [x] Spine labeling (C1…S1 স্বয়ংক্রিয় ক্রমে)
+- [x] Hidden area / redaction box (ছবির অংশ ঢাকা; export-এও ঢাকা থাকবে)
+- [x] পুরনো টুলগুলোর মান ঠিক আছে কিনা পুনরায় যাচাই (length, angle, ellipse, probe)
 
 **Calibration ও ইউনিট**
-- [ ] হাতে calibration: পরিচিত দৈর্ঘ্যের রেখা টেনে mm বসানো (pixel spacing না থাকলে বা ভুল থাকলে)
-- [ ] Imager pixel spacing / estimated radiographic magnification factor (DX/CR/MG) মেনে চলা, কোন spacing ব্যবহার হলো তা দেখানো
-- [ ] আল্ট্রাসাউন্ডের calibrated region (Sequence of Ultrasound Regions) থেকে মাপ
-- [ ] ইউনিট সেটিং: mm/cm, mm²/cm²
+- [x] হাতে calibration: পরিচিত দৈর্ঘ্যের রেখা টেনে mm বসানো (pixel spacing না থাকলে বা ভুল থাকলে)
+- [x] Imager pixel spacing / estimated radiographic magnification factor (DX/CR/MG) মেনে চলা, কোন spacing ব্যবহার হলো তা দেখানো
+- [x] আল্ট্রাসাউন্ডের calibrated region (Sequence of Ultrasound Regions) থেকে মাপ
+- [x] ইউনিট সেটিং: mm/cm, mm²/cm²
 
 **পরিসংখ্যান**
-- [ ] প্রতিটা ROI-তে mean, median, min, max, std dev, ক্ষেত্রফল, পিক্সেল সংখ্যা
-- [ ] HU (CT), SUV (PET), কাঁচা মান (অন্য)
-- [ ] ROI histogram (প্যানেলে চার্ট)
+- [x] প্রতিটা ROI-তে mean, median, min, max, std dev, ক্ষেত্রফল, পিক্সেল সংখ্যা
+- [x] HU (CT), SUV (PET), কাঁচা মান (অন্য)
+- [x] ROI histogram (প্যানেলে চার্ট)
 
 **ব্যবস্থাপনা**
-- [ ] **মাপের প্যানেল:** সব মাপের তালিকা (সিরিজ ও ছবি অনুযায়ী), মান, ক্লিক করলে সেই ছবিতে যাওয়া
-- [ ] নির্বাচন, সরানো, সম্পাদনা, label দেওয়া, রং বদলানো
-- [ ] একটা মুছে ফেলা (Delete key), ছবির সব, সিরিজের সব, সব মুছে ফেলা
-- [ ] Undo / Redo (Ctrl+Z / Ctrl+Y)
-- [ ] মাপ কপি করে অন্য ছবিতে বসানো
-- [ ] মাপ লুকানো/দেখানো (সব বা একটা)
-- [ ] মাপের মান কপি (clipboard) আর CSV export
-- [ ] **মাপ সেভ ও লোড (JSON ফাইল):** পরের বার খুললে ফেরত আনা (DICOM SR-এ সেভ ফেজ ৮-এ)
-- [ ] MPR viewport-এও মাপ (volume-এ)
-- [ ] Definition of Done পূরণ
+- [x] **মাপের প্যানেল:** সব মাপের তালিকা (সিরিজ ও ছবি অনুযায়ী), মান, ক্লিক করলে সেই ছবিতে যাওয়া
+- [x] নির্বাচন, সরানো, সম্পাদনা, label দেওয়া, রং বদলানো
+- [x] একটা মুছে ফেলা (Delete key), ছবির সব, সিরিজের সব, সব মুছে ফেলা
+- [x] Undo / Redo (Ctrl+Z / Ctrl+Y)
+- [x] মাপ কপি করে অন্য ছবিতে বসানো
+- [x] মাপ লুকানো/দেখানো (সব বা একটা)
+- [x] মাপের মান কপি (clipboard) আর CSV export
+- [x] **মাপ সেভ ও লোড (JSON ফাইল):** পরের বার খুললে ফেরত আনা (DICOM SR-এ সেভ ফেজ ৮-এ)
+- [x] MPR viewport-এও মাপ (volume-এ; ক্ষেত্রফলের পরিসংখ্যান Cornerstone-এর নিজের হিসাব থেকে)
+- [x] Definition of Done পূরণ (বিস্তারিত ও বাকি থাকা কথা: [PHASE_3_MEASUREMENTS_PLAN.md](PHASE_3_MEASUREMENTS_PLAN.md))
 
 ## ফেজ ৪: তুলনা ও sync
 
