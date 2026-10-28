@@ -2,7 +2,8 @@ import { cache } from '@cornerstonejs/core'
 import { wadouri } from '@cornerstonejs/dicom-image-loader'
 import dicomParser from 'dicom-parser'
 import { clearImagePlanes, recordImagePlane } from './imagePlaneMetadata'
-import type { ImageEntry, Series, Study } from './types'
+import { compareImages, formatDate, formatPersonName, isLocalizer, sliceLocation } from './parse'
+import type { Series, Study } from './types'
 
 export interface LoadResult {
   studies: Study[]
@@ -13,42 +14,6 @@ const PIXEL_DATA_TAG = 'x7fe00010'
 
 export function parseHeader(buffer: ArrayBuffer) {
   return dicomParser.parseDicom(new Uint8Array(buffer), { untilTag: PIXEL_DATA_TAG })
-}
-
-/** Formats a DICOM PN value ("Doe^John") for display. */
-export function formatPersonName(value: string | undefined) {
-  return (value ?? '').split('^').filter(Boolean).join(' ').trim()
-}
-
-/** Formats a DICOM DA value ("20240131") as "2024-01-31". */
-export function formatDate(value: string | undefined) {
-  if (!value || value.length !== 8) return value ?? ''
-  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
-}
-
-function sliceLocation(dataSet: dicomParser.DataSet): number | null {
-  const position = dataSet.string('x00200032')?.split('\\').map(Number)
-  const orientation = dataSet.string('x00200037')?.split('\\').map(Number)
-  if (position?.length !== 3 || orientation?.length !== 6) return null
-
-  // Project the image position onto the slice normal (row × column).
-  const [rx, ry, rz, cx, cy, cz] = orientation
-  const normal = [ry * cz - rz * cy, rz * cx - rx * cz, rx * cy - ry * cx]
-  const value = position[0] * normal[0] + position[1] * normal[1] + position[2] * normal[2]
-  return Number.isFinite(value) ? value : null
-}
-
-const LOCALIZER_DESCRIPTION = /scout|localizer|locator|topogram|surview|scanogram|survey/i
-
-function isLocalizer(dataSet: dicomParser.DataSet, description: string) {
-  const imageType = dataSet.string('x00080008') ?? ''
-  return imageType.toUpperCase().includes('LOCALIZER') || LOCALIZER_DESCRIPTION.test(description)
-}
-
-function compareImages(a: ImageEntry, b: ImageEntry) {
-  if (a.instanceNumber !== b.instanceNumber) return a.instanceNumber - b.instanceNumber
-  if (a.sliceLocation !== null && b.sliceLocation !== null) return a.sliceLocation - b.sliceLocation
-  return 0
 }
 
 /**
@@ -92,7 +57,7 @@ export async function loadFiles(
       if (!study) {
         study = {
           studyInstanceUID: studyUID,
-          patientName: formatPersonName(dataSet.string('x00100010')) || 'Anonymous',
+          patientName: formatPersonName(dataSet.string('x00100010')),
           patientId: dataSet.string('x00100020') ?? '',
           studyDate: formatDate(dataSet.string('x00080020')),
           description: dataSet.string('x00081030') ?? '',
@@ -112,14 +77,14 @@ export async function loadFiles(
           isLocalizer: false,
           images: [],
         }
-        series.isLocalizer = isLocalizer(dataSet, series.description)
+        series.isLocalizer = isLocalizer(dataSet.string('x00080008'), series.description)
         seriesByUID.set(seriesUID, series)
         study.series.push(series)
       }
 
       const baseImageId = wadouri.fileManager.add(file)
       const instanceNumber = Number(dataSet.string('x00200013') ?? 0) || 0
-      const location = sliceLocation(dataSet)
+      const location = sliceLocation(dataSet.string('x00200032'), dataSet.string('x00200037'))
       const frames = Number(dataSet.string('x00280008') ?? 1) || 1
 
       if (frames > 1) {

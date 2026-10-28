@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: পরিকল্পনা, কাজ শুরু হয়নি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০ সম্পন্ন, ফেজ ১ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -44,27 +44,29 @@
 
 ---
 
-## ফেজ ০: ভিত্তি ও কাঠামো
+## ফেজ ০: ভিত্তি ও কাঠামো ✅
+
+> সম্পন্ন 2026-10-28 · বিস্তারিত: [PHASE_0_FOUNDATION_PLAN.md](PHASE_0_FOUNDATION_PLAN.md)
 
 পরের ফেজগুলোতে অনেক প্যানেল, সেটিং আর টুল যোগ হবে। এখনকার `App.tsx`-এর state সেই বোঝা নিতে পারবে না, তাই আগে কাঠামো ঠিক করা হবে।
 
-- [ ] **State management:** viewer state (স্টাডি, সিরিজ, লেআউট, active viewport, mode, টুল, link) একটা store-এ আনা (Zustand বা React context + reducer; ফেজের plan-এ সিদ্ধান্ত)
-- [ ] **Settings store:** ব্যবহারকারীর পছন্দ (preset, শর্টকাট, ভাষা, থিম, ইউনিট) localStorage-এ, version আর migration-সহ
-- [ ] **Viewport registry:** কোন viewport-এ কোন display set, কোন ধরন (stack/volume/3D/video/pdf/sr/ecg), এক জায়গা থেকে জানা
-- [ ] **Panel system:** ডান/বাম পাশে একাধিক প্যানেল (tag, measurement, segmentation, report) বদলানোর কাঠামো; ফোনে নিচের sheet
-- [ ] **Command/action registry:** টুলবার, শর্টকাট, context menu আর touch সব একই action ডাকবে (পরে শর্টকাট বদলানো আর i18n সহজ হবে)
-- [ ] **Context menu (ডান-ক্লিক মেনু)** কাঠামো: viewport-এ আর মাপের উপর
-- [ ] **Toast/notification আর error boundary:** লোডের ভুল, unsupported ফাইল, মেমোরি সতর্কতা এক ধাঁচে দেখানো
-- [ ] **Lazy loading:** MPR, 3D, PDF, ভিডিও, ECG, fusion, export-এর কোড আলাদা chunk-এ (`import()`), যাতে প্রথম লোড হালকা থাকে
-- [ ] **Bundle size নজরদারি:** build-এ chunk size রিপোর্ট; প্রথম লোডের সীমা ঠিক করা
-- [ ] **i18n কাঠামো (শুধু কাঠামো):** `i18next` বসানো, সব UI লেখা key-তে আনা (অনুবাদ ফেজ ১০-এ)
-- [ ] **টেস্ট কাঠামো:**
+- [x] **State management:** viewer state (স্টাডি, সিরিজ, লেআউট, active viewport, mode, টুল, link) একটা store-এ আনা (Zustand বা React context + reducer; ফেজের plan-এ সিদ্ধান্ত)
+- [x] **Settings store:** ব্যবহারকারীর পছন্দ (preset, শর্টকাট, ভাষা, থিম, ইউনিট) localStorage-এ, version আর migration-সহ
+- [x] **Viewport registry:** কোন viewport-এ কোন display set, কোন ধরন (stack/volume/3D/video/pdf/sr/ecg), এক জায়গা থেকে জানা
+- [x] **Panel system:** ডান/বাম পাশে একাধিক প্যানেল (tag, measurement, segmentation, report) বদলানোর কাঠামো; ফোনে নিচের sheet
+- [x] **Command/action registry:** টুলবার, শর্টকাট, context menu আর touch সব একই action ডাকবে (পরে শর্টকাট বদলানো আর i18n সহজ হবে)
+- [x] **Context menu (ডান-ক্লিক মেনু)** কাঠামো: viewport-এ আর মাপের উপর
+- [x] **Toast/notification আর error boundary:** লোডের ভুল, unsupported ফাইল, মেমোরি সতর্কতা এক ধাঁচে দেখানো
+- [x] **Lazy loading:** MPR, 3D, PDF, ভিডিও, ECG, fusion, export-এর কোড আলাদা chunk-এ (`import()`), যাতে প্রথম লোড হালকা থাকে
+- [x] **Bundle size নজরদারি:** build-এ chunk size রিপোর্ট; প্রথম লোডের সীমা ঠিক করা
+- [x] **i18n কাঠামো (শুধু কাঠামো):** `i18next` বসানো, সব UI লেখা key-তে আনা (অনুবাদ ফেজ ১০-এ)
+- [x] **টেস্ট কাঠামো:**
   - Unit test: Vitest (DICOM পার্সিং, sort, anonymize, হিসাব)
   - E2E: Playwright test ফাইল (এখন হাতে করা পরীক্ষাগুলো স্ক্রিপ্টে)
-- [ ] **Test data বাড়ানো:** phantom-এ multi-frame, US color cine, MR multi-sequence, PET, ভুল/অসম্পূর্ণ ফাইল; পাবলিক anonymized ডেটাসেটের তালিকা ও ডাউনলোড স্ক্রিপ্ট
-- [ ] **CI:** GitHub Actions-এ build + lint + unit test
-- [ ] **HMR সমস্যা** (Cornerstone init আবার চলা) সমাধান বা dev-এ ঠিকভাবে সামলানো
-- [ ] Definition of Done পূরণ
+- [x] **Test data বাড়ানো:** phantom-এ multi-frame, US color cine, MR multi-sequence, PET, ভুল/অসম্পূর্ণ ফাইল; পাবলিক anonymized ডেটাসেটের তালিকা ও ডাউনলোড স্ক্রিপ্ট
+- [x] **CI:** GitHub Actions-এ build + lint + unit test
+- [x] **HMR সমস্যা** (Cornerstone init আবার চলা) সমাধান বা dev-এ ঠিকভাবে সামলানো
+- [x] Definition of Done পূরণ
 
 ## ফেজ ১: ফাইল খোলা ও ফরম্যাট
 
@@ -313,6 +315,7 @@
 
 **মোবাইল ও touch**
 - [ ] এক আঙুল: স্ক্রল (বা বাছাই করা টুল), দুই আঙুল: zoom/pan, তিন আঙুল বা লম্বা চাপ: W/L
+- [ ] লম্বা চাপে viewport-এর context menu (ফেজ ০ থেকে সরানো)
 - [ ] ফোনে টুলবার (নিচে, বড় বোতাম), প্যানেল নিচের sheet হিসেবে
 - [ ] ট্যাবলেটে stylus দিয়ে মাপা
 - [ ] মোবাইলে মেমোরির সীমা সব ভারী feature-এ (MPR, 3D, fusion, cine, export)

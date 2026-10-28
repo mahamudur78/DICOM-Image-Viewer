@@ -3,23 +3,46 @@
 A free, browser-only DICOM viewer. Files are parsed and rendered locally with
 [Cornerstone3D](https://www.cornerstonejs.org/) and are never uploaded.
 
-Plan and roadmap: [BLUEPRINT/DICOM_VIEWER_PLAN.md](BLUEPRINT/DICOM_VIEWER_PLAN.md)
+Roadmap: [BLUEPRINT/FULL_FEATURE_ROADMAP.md](BLUEPRINT/FULL_FEATURE_ROADMAP.md) (all plans are in `BLUEPRINT/`)
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # outputs dist/ (static, deploy to Cloudflare Pages / Vercel)
+npm run dev            # http://localhost:5173
+npm run build          # type-checks, outputs dist/ (static)
 npm run lint
+npm test               # unit tests (Vitest)
+npm run test:e2e       # browser tests (Playwright) against the dev server
+npm run test:e2e:prod  # the same against a production build
+npm run size           # gzip bundle sizes and budgets (after a build)
+npm run deploy         # build and upload dist/ to Cloudflare Pages
 ```
 
 `predev`/`prebuild` copy the codec WASM files into `public/wasm/` (git-ignored).
+Playwright needs Chromium once: `npx playwright install chromium`.
 
-Test data without patient information: `node scripts/generate-phantom.mjs <dir>` writes
-a synthetic CT study (coronal scout + 2.5 mm and 5 mm axial series in one frame of reference).
+Test data without patient information (see [BLUEPRINT/TEST_DATA.md](BLUEPRINT/TEST_DATA.md)):
+`scripts/generate-phantom.mjs` (CT study) and `scripts/generate-samples.mjs` (US cine, MR, PET, DX,
+broken files) are generated automatically by the e2e tests; `npm run samples:fetch` downloads
+public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 
-## Features (MVP)
+## Code structure
+
+| Folder | Contents |
+|---|---|
+| `src/store/` | Zustand stores: viewer session, persisted settings, and actions with Cornerstone side effects |
+| `src/commands/` | Every user action; the toolbar, keyboard shortcuts and context menu are built from it |
+| `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
+| `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
+| `src/components/`, `src/panels/` | React UI; side panels are registered in `src/panels/panels.ts` |
+| `src/notifications/` | Toasts and error boundaries |
+| `src/i18n/` | Translations (`locales/en.ts` defines every key) |
+
+The welcome page loads without Cornerstone; the viewer runtime (`src/runtimeEntry.ts`) is a
+separate chunk that starts downloading right after the first render.
+
+## Features
 
 - Open files or whole folders (button or drag & drop), `.dcm` or extension-less
 - Study / series list, sorted by instance number and slice position
@@ -34,6 +57,7 @@ a synthetic CT study (coronal scout + 2.5 mm and 5 mm axial series in one frame 
 - MPR (axial / sagittal / coronal) with crosshairs and thick-slab MIP / MinIP / average
 - 3D volume rendering with 26 presets (CT-Bone, CT-AAA, MR-Angio, …), rotate, preset shift,
   orientation cube, and an "MPR + 3D" 2×2 layout; large volumes ask before loading
+- Right-click menu on viewports, notifications, link settings remembered between visits
 
 Keyboard: `↑/↓` slice · `W P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `I` invert · `R` reset · `T` tags
 

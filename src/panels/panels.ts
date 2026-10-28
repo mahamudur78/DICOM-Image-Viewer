@@ -1,0 +1,18 @@
+import { lazy, type ComponentType } from 'react'
+import type { PanelId } from '../store/viewerStore'
+
+export interface PanelDefinition {
+  id: PanelId
+  /** i18n key */
+  title: string
+  component: ComponentType
+}
+
+/** Side panels. Later phases add measurements, segmentation, reports, … here. */
+export const PANELS: Record<PanelId, PanelDefinition> = {
+  tags: {
+    id: 'tags',
+    title: 'tags.title',
+    component: lazy(() => import('../components/TagPanel').then((m) => ({ default: m.TagPanel }))),
+  },
+}

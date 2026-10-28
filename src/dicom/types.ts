@@ -29,6 +29,7 @@ export const SERIES_DRAG_TYPE = 'application/x-dicom-series'
 
 export interface Study {
   studyInstanceUID: string
+  /** Empty when the file has no name; shown as "Anonymous" (translated). */
   patientName: string
   patientId: string
   studyDate: string

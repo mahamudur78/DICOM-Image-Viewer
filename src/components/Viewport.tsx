@@ -1,5 +1,6 @@
 import { Enums } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import {
   getViewport,
@@ -11,6 +12,8 @@ import {
   unmountViewport,
 } from '../cornerstone/viewer'
 import type { DisplaySet } from '../dicom/types'
+import { notify } from '../notifications/toastStore'
+import { useContextMenuTrigger } from './contextMenuTrigger'
 import { ImageScrollbar } from './ImageScrollbar'
 
 interface ViewportProps {
@@ -20,7 +23,6 @@ interface ViewportProps {
   onActivate: () => void
   onToggleMaximize: () => void
   onIndexChange: (index: number) => void
-  onError: (message: string) => void
 }
 
 interface OverlayState {
@@ -48,8 +50,9 @@ export function Viewport({
   onActivate,
   onToggleMaximize,
   onIndexChange,
-  onError,
 }: ViewportProps) {
+  const { t } = useTranslation()
+  const contextMenu = useContextMenuTrigger()
   const { study, series } = displaySet
   const elementRef = useRef<HTMLDivElement>(null)
   const onIndexChangeRef = useRef(onIndexChange)
@@ -106,7 +109,7 @@ export function Viewport({
       series.images.map((image) => image.imageId),
     )
       .catch((error: unknown) => {
-        if (!cancelled) onError(`Could not display this series: ${describeError(error)}`)
+        if (!cancelled) notify(t('messages.displayFailed', { error: describeError(error) }), 'error')
       })
       .finally(() => {
         if (!cancelled) setLoadedSeries(series)
@@ -114,7 +117,7 @@ export function Viewport({
     return () => {
       cancelled = true
     }
-  }, [viewportId, series, onError])
+  }, [viewportId, series, t])
 
   const { markers } = overlay
 
@@ -123,17 +126,22 @@ export function Viewport({
       className={`@container relative h-full w-full overflow-hidden bg-black outline-1 -outline-offset-1 ${
         active ? 'z-10 outline-2 outline-sky-500' : 'outline-slate-800'
       }`}
-      onPointerDownCapture={onActivate}
+      data-viewport-id={viewportId}
+      onPointerDownCapture={(event) => {
+        onActivate()
+        contextMenu.onPointerDownCapture(event)
+      }}
+      onPointerUpCapture={contextMenu.onPointerUpCapture}
       onWheelCapture={active ? undefined : onActivate}
       onDoubleClick={onToggleMaximize}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
 
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         {/* Small cells (e.g. 2×2 on a phone) show only the essentials. */}
         <div className="absolute left-2 top-2 max-w-[40%]">
-          <div className="truncate font-semibold">{study.patientName}</div>
+          <div className="truncate font-semibold">{study.patientName || t('viewport.anonymous')}</div>
           {study.patientId && <div className="truncate @max-xs:hidden">{study.patientId}</div>}
           {overlay.size && <div className="@max-xs:hidden">{overlay.size}</div>}
         </div>
@@ -145,11 +153,9 @@ export function Viewport({
           {series.description && <div className="truncate">{series.description}</div>}
         </div>
         <div className="absolute bottom-2 left-2">
-          <div>Z: {overlay.zoom.toFixed(2)}</div>
+          <div>{t('viewport.zoom', { zoom: overlay.zoom.toFixed(2) })}</div>
           {overlay.windowWidth !== null && (
-            <div>
-              W: {overlay.windowWidth} L: {overlay.windowCenter}
-            </div>
+            <div>{t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter })}</div>
           )}
         </div>
         <div className="absolute bottom-2 right-5 text-right">
@@ -171,7 +177,9 @@ export function Viewport({
       )}
 
       {loading && (
-        <div className="absolute inset-0 grid place-items-center bg-black/40 text-sm text-slate-200">Loading images…</div>
+        <div className="absolute inset-0 grid place-items-center bg-black/40 text-sm text-slate-200">
+          {t('viewport.loadingImages')}
+        </div>
       )}
     </div>
   )

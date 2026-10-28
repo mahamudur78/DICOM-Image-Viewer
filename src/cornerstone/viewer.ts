@@ -1,28 +1,9 @@
 import { Enums, RenderingEngine, getRenderingEngine, type Types } from '@cornerstonejs/core'
 import { ToolGroupManager } from '@cornerstonejs/tools'
+import { RENDERING_ENGINE_ID } from './constants'
 import { setSyncSource } from './sync'
+import { registerViewport, unregisterViewport } from './viewportRegistry'
 import { TOOL_GROUP_ID } from './tools'
-
-export const RENDERING_ENGINE_ID = 'main-rendering-engine'
-export const MAX_VIEWPORTS = 4
-
-export const viewportIdAt = (cell: number) => `viewport-${cell}`
-
-export interface WindowPreset {
-  label: string
-  width: number
-  center: number
-}
-
-/** Common CT window presets (Hounsfield units). */
-export const CT_PRESETS: WindowPreset[] = [
-  { label: 'Soft tissue', width: 400, center: 40 },
-  { label: 'Lung', width: 1500, center: -600 },
-  { label: 'Bone', width: 1800, center: 400 },
-  { label: 'Brain', width: 80, center: 40 },
-  { label: 'Abdomen', width: 350, center: 50 },
-  { label: 'Liver', width: 150, center: 30 },
-]
 
 export function createRenderingEngine() {
   return getRenderingEngine(RENDERING_ENGINE_ID) ?? new RenderingEngine(RENDERING_ENGINE_ID)
@@ -51,6 +32,7 @@ export function mountViewport(viewportId: string, element: HTMLDivElement) {
     defaultOptions: { background: [0, 0, 0] },
   })
   ToolGroupManager.getToolGroup(TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  registerViewport(viewportId, 'stack')
 }
 
 /**
@@ -71,6 +53,7 @@ export function setActiveSource(sourceViewportId: string | null) {
 
 /** Disabling the element also removes it from its tool group and synchronizers. */
 export function unmountViewport(viewportId: string) {
+  unregisterViewport(viewportId)
   getRenderingEngine(RENDERING_ENGINE_ID)?.disableElement(viewportId)
 }
 

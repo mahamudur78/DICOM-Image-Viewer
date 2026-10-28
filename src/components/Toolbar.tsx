@@ -1,101 +1,93 @@
+import { useTranslation } from 'react-i18next'
+import {
+  COMMANDS,
+  getCommand,
+  isAvailable,
+  isEnabled,
+  type Command,
+  type CommandContext,
+  type CommandGroup,
+} from '../commands/commands'
+import { useCommandContext } from '../commands/useCommands'
 import type { SlabMode } from '../cornerstone/mpr'
-import { toolsForMode, type PrimaryTool, type ViewMode } from '../cornerstone/tools'
-import { CT_PRESETS, downloadPng, flip, rotate90, setWindow, toggleInvert } from '../cornerstone/viewer'
+import { setWindow } from '../cornerstone/viewer'
 import { groupedPresets } from '../cornerstone/volume3d'
+import { CT_PRESETS, findPresetIndex } from '../dicom/windowPresets'
+import { openFiles } from '../store/viewerActions'
+import { selectCurrentDisplaySet, setPreset, setSlab, useViewer } from '../store/viewerStore'
 import { FilePickers } from './FilePickers'
-import { LAYOUTS, type Layout } from './layouts'
-import { LINK_BUTTONS, TOOL_BUTTONS, type LinkSettings } from './toolButtons'
+import { LayoutIcon } from './LayoutIcon'
 import { useViewportVoi } from './useViewportVoi'
-
-interface ToolbarProps {
-  mode: ViewMode
-  onModeChange: (mode: ViewMode) => void
-  activeTool: PrimaryTool
-  onToolChange: (tool: PrimaryTool) => void
-  /** Viewport the view actions apply to, or null when the active cell is empty. */
-  viewportId: string | null
-  /** True when that viewport is a 3D rendering (2D-only actions are hidden). */
-  viewportIs3d: boolean
-  onReset: () => void
-  modality: string
-  layout: Layout
-  onLayoutChange: (layout: Layout) => void
-  links: LinkSettings
-  onToggleLink: (key: keyof LinkSettings) => void
-  slab: Slab
-  onSlabChange: (slab: Slab) => void
-  mprWith3d: boolean
-  onToggleMprWith3d: () => void
-  preset: string
-  onPresetChange: (preset: string) => void
-  showTags: boolean
-  onToggleTags: () => void
-  onFiles: (files: File[]) => void
-}
-
-export interface Slab {
-  mode: SlabMode
-  thickness: number
-}
 
 const SLAB_THICKNESSES = [0, 5, 10, 20, 40]
 const SLAB_MODES: { mode: SlabMode; label: string }[] = [
-  { mode: 'mip', label: 'MIP' },
-  { mode: 'minip', label: 'MinIP' },
-  { mode: 'avg', label: 'Average' },
+  { mode: 'mip', label: 'toolbar.slabMip' },
+  { mode: 'minip', label: 'toolbar.slabMinip' },
+  { mode: 'avg', label: 'toolbar.slabAvg' },
 ]
 
 const SELECT_CLASS = 'h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200 disabled:opacity-40'
 
-function IconButton({
-  label,
-  onClick,
-  active = false,
-  disabled = false,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  active?: boolean
-  disabled?: boolean
-  children: React.ReactNode
-}) {
+/** Groups whose icon is a short text label rather than a symbol. */
+const TEXT_ICON_GROUPS: CommandGroup[] = ['mode', 'link', 'panel']
+
+function CommandButton({ command, ctx }: { command: Command; ctx: CommandContext }) {
+  const { t } = useTranslation()
+  const label = t(command.label, command.labelValues)
+  const shortcut = command.keys?.[0]
+  const title = shortcut?.length === 1 ? `${label} (${shortcut.toUpperCase()})` : label
+  const active = command.isActive?.(ctx) ?? false
+  const layout = command.group === 'layout' ? (command.labelValues as { rows: number; cols: number }) : null
+
   return (
     <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
+      onClick={() => command.run(ctx)}
+      title={title}
+      aria-label={title}
       aria-pressed={active}
-      disabled={disabled}
+      disabled={!isEnabled(command, ctx)}
       className={`grid h-9 min-w-9 place-items-center rounded-md px-2 text-base transition disabled:opacity-30 ${
         active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
       }`}
     >
-      {children}
+      {layout ? (
+        <LayoutIcon {...layout} />
+      ) : TEXT_ICON_GROUPS.includes(command.group) ? (
+        <span className="text-[10px] font-semibold tracking-wide">{command.icon}</span>
+      ) : (
+        command.icon
+      )}
     </button>
   )
 }
 
 const Divider = () => <div className="mx-1 h-6 w-px bg-slate-700" />
 
-function LayoutIcon({ rows, cols }: Layout) {
-  return (
-    <span
-      className="grid h-4 w-5 gap-px"
-      style={{ gridTemplateRows: `repeat(${rows}, 1fr)`, gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-    >
-      {Array.from({ length: rows * cols }, (_, i) => (
-        <span key={i} className="rounded-[1px] bg-current" />
-      ))}
-    </span>
-  )
+/** Buttons for a command group. Keyboard-only commands (no icon) are skipped. */
+function Group({ group, ctx, exclude = [] }: { group: CommandGroup; ctx: CommandContext; exclude?: string[] }) {
+  return COMMANDS.filter(
+    (command) =>
+      command.group === group &&
+      (command.icon !== undefined || group === 'layout') &&
+      !exclude.includes(command.id) &&
+      isAvailable(command, ctx),
+  ).map((command) => <CommandButton key={command.id} command={command} ctx={ctx} />)
 }
 
-function PresetSelect({ modality, preset, onChange }: { modality: string; preset: string; onChange: (p: string) => void }) {
+const PRESET_GROUP_LABELS: Record<string, string> = { Other: 'toolbar.presetGroupOther', All: 'toolbar.presetGroupAll' }
+
+function PresetSelect({ modality }: { modality: string }) {
+  const { t } = useTranslation()
+  const preset = useViewer((s) => s.preset)
   return (
-    <select aria-label="3D preset" value={preset} onChange={(event) => onChange(event.target.value)} className={SELECT_CLASS}>
+    <select
+      aria-label={t('toolbar.preset3d')}
+      value={preset}
+      onChange={(event) => setPreset(event.target.value)}
+      className={SELECT_CLASS}
+    >
       {groupedPresets(modality).map((group) => (
-        <optgroup key={group.label} label={group.label}>
+        <optgroup key={group.label} label={PRESET_GROUP_LABELS[group.label] ? t(PRESET_GROUP_LABELS[group.label]) : group.label}>
           {group.presets.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -112,15 +104,13 @@ function PresetSelect({ modality, preset, onChange }: { modality: string; preset
  * itself once it has been changed some other way (e.g. by dragging).
  */
 function WindowPresetSelect({ viewportId }: { viewportId: string }) {
+  const { t } = useTranslation()
   const voi = useViewportVoi(viewportId)
-  // ±1 because a DICOM window of 400/40 is stored as the range -160..239 (width 399).
-  const matching = voi
-    ? CT_PRESETS.findIndex((p) => Math.abs(p.width - voi.width) <= 1 && Math.abs(p.center - voi.center) <= 1)
-    : -1
+  const matching = voi ? findPresetIndex(CT_PRESETS, voi) : -1
 
   return (
     <select
-      aria-label="Window preset"
+      aria-label={t('toolbar.windowPreset')}
       value={matching >= 0 ? String(matching) : ''}
       onChange={(event) => {
         const windowPreset = CT_PRESETS[Number(event.target.value)]
@@ -129,157 +119,86 @@ function WindowPresetSelect({ viewportId }: { viewportId: string }) {
       className={`ml-1 ${SELECT_CLASS}`}
     >
       <option value="" disabled>
-        {voi && matching < 0 ? `W/L ${voi.width}/${voi.center}` : 'W/L preset'}
+        {voi && matching < 0
+          ? t('toolbar.currentWindow', { width: voi.width, center: voi.center })
+          : t('toolbar.windowPresetPlaceholder')}
       </option>
       {CT_PRESETS.map((p, index) => (
         <option key={p.label} value={index}>
-          {p.label} ({p.width}/{p.center})
+          {t(p.label)} ({p.width}/{p.center})
         </option>
       ))}
     </select>
   )
 }
 
-export function Toolbar({
-  mode,
-  onModeChange,
-  activeTool,
-  onToolChange,
-  viewportId,
-  viewportIs3d,
-  onReset,
-  modality,
-  layout,
-  onLayoutChange,
-  links,
-  onToggleLink,
-  slab,
-  onSlabChange,
-  mprWith3d,
-  onToggleMprWith3d,
-  preset,
-  onPresetChange,
-  showTags,
-  onToggleTags,
-  onFiles,
-}: ToolbarProps) {
-  const withViewport = (action: (id: string) => void) => () => {
-    if (viewportId) action(viewportId)
-  }
-  const noViewport = viewportId === null
-  const available = toolsForMode(mode)
-  const show3dControls = mode === '3d' || (mode === 'mpr' && mprWith3d)
+function SlabControls() {
+  const { t } = useTranslation()
+  const slab = useViewer((s) => s.slab)
+  return (
+    <>
+      <select
+        aria-label={t('toolbar.slabThickness')}
+        value={slab.thickness}
+        onChange={(event) => setSlab({ ...slab, thickness: Number(event.target.value) })}
+        className={SELECT_CLASS}
+      >
+        {SLAB_THICKNESSES.map((mm) => (
+          <option key={mm} value={mm}>
+            {mm === 0 ? t('toolbar.slabOff') : t('toolbar.slabMm', { mm })}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label={t('toolbar.slabProjection')}
+        value={slab.mode}
+        disabled={slab.thickness === 0}
+        onChange={(event) => setSlab({ ...slab, mode: event.target.value as SlabMode })}
+        className={SELECT_CLASS}
+      >
+        {SLAB_MODES.map(({ mode, label }) => (
+          <option key={mode} value={mode}>
+            {t(label)}
+          </option>
+        ))}
+      </select>
+    </>
+  )
+}
+
+export function Toolbar() {
+  const ctx = useCommandContext()
+  const { mode, viewportId, kind } = ctx
+  const modality = useViewer((s) => selectCurrentDisplaySet(s)?.series.modality ?? '')
+  const show3dControls = mode === '3d' || (mode === 'mpr' && ctx.state.mprWith3d)
 
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5">
-      {TOOL_BUTTONS.filter(({ tool }) => available.includes(tool)).map(({ tool, label, icon, key }) => (
-        <IconButton key={tool} label={`${label} (${key})`} active={activeTool === tool} onClick={() => onToolChange(tool)}>
-          {icon}
-        </IconButton>
-      ))}
+      <Group group="tool" ctx={ctx} />
+      <Divider />
+      <Group group="view" ctx={ctx} exclude={['view.downloadPng']} />
+
+      {modality === 'CT' && viewportId && kind !== 'volume3d' && <WindowPresetSelect viewportId={viewportId} />}
 
       <Divider />
-
-      {!viewportIs3d && (
-        <>
-          <IconButton label="Invert (I)" disabled={noViewport} onClick={withViewport(toggleInvert)}>
-            ◑
-          </IconButton>
-          <IconButton label="Rotate 90°" disabled={noViewport} onClick={withViewport(rotate90)}>
-            ↻
-          </IconButton>
-          <IconButton label="Flip horizontal" disabled={noViewport} onClick={withViewport((id) => flip(id, 'horizontal'))}>
-            ⇋
-          </IconButton>
-          <IconButton label="Flip vertical" disabled={noViewport} onClick={withViewport((id) => flip(id, 'vertical'))}>
-            ⇵
-          </IconButton>
-        </>
-      )}
-      <IconButton label="Reset (R)" disabled={noViewport} onClick={onReset}>
-        ⟲
-      </IconButton>
-
-      {modality === 'CT' && viewportId && !viewportIs3d && <WindowPresetSelect viewportId={viewportId} />}
-
-      <Divider />
-
-      <IconButton label="MPR: axial, sagittal and coronal views" active={mode === 'mpr'} onClick={() => onModeChange('mpr')}>
-        <span className="text-[10px] font-semibold tracking-wide">MPR</span>
-      </IconButton>
-      <IconButton label="3D volume rendering" active={mode === '3d'} onClick={() => onModeChange('3d')}>
-        <span className="text-[10px] font-semibold tracking-wide">3D</span>
-      </IconButton>
-
-      {mode === 'mpr' && (
-        <>
-          <IconButton label="MPR + 3D layout (2×2)" active={mprWith3d} onClick={onToggleMprWith3d}>
-            <span className="text-[10px] font-semibold tracking-wide">+3D</span>
-          </IconButton>
-          <select
-            aria-label="Slab thickness"
-            value={slab.thickness}
-            onChange={(event) => onSlabChange({ ...slab, thickness: Number(event.target.value) })}
-            className={SELECT_CLASS}
-          >
-            {SLAB_THICKNESSES.map((mm) => (
-              <option key={mm} value={mm}>
-                {mm === 0 ? 'Slab: off' : `Slab ${mm} mm`}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Slab projection"
-            value={slab.mode}
-            disabled={slab.thickness === 0}
-            onChange={(event) => onSlabChange({ ...slab, mode: event.target.value as SlabMode })}
-            className={SELECT_CLASS}
-          >
-            {SLAB_MODES.map(({ mode: slabMode, label }) => (
-              <option key={slabMode} value={slabMode}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-
-      {show3dControls && <PresetSelect modality={modality} preset={preset} onChange={onPresetChange} />}
+      <Group group="mode" ctx={ctx} />
+      {mode === 'mpr' && <SlabControls />}
+      {show3dControls && <PresetSelect modality={modality} />}
 
       {mode === 'grid' && (
         <>
-          {LAYOUTS.map((option) => (
-            <IconButton
-              key={`${option.rows}x${option.cols}`}
-              label={`Layout ${option.rows}×${option.cols}`}
-              active={option.rows === layout.rows && option.cols === layout.cols}
-              onClick={() => onLayoutChange(option)}
-            >
-              <LayoutIcon {...option} />
-            </IconButton>
-          ))}
-
+          <Group group="layout" ctx={ctx} />
           <Divider />
-
-          {LINK_BUTTONS.map(({ key, label, short }) => (
-            <IconButton key={key} label={label} active={links[key]} onClick={() => onToggleLink(key)}>
-              <span className="text-[10px] font-semibold tracking-wide">{short}</span>
-            </IconButton>
-          ))}
+          <Group group="link" ctx={ctx} />
         </>
       )}
 
       <Divider />
-
-      <IconButton label="Download PNG" disabled={noViewport} onClick={withViewport((id) => downloadPng(id, 'dicom-image.png'))}>
-        ⤓
-      </IconButton>
-      <IconButton label="DICOM tags (T)" active={showTags} onClick={onToggleTags}>
-        <span className="text-xs font-semibold">TAGS</span>
-      </IconButton>
+      <CommandButton command={getCommand('view.downloadPng')} ctx={ctx} />
+      <Group group="panel" ctx={ctx} />
 
       <div className="ml-auto">
-        <FilePickers onFiles={onFiles} compact />
+        <FilePickers onFiles={openFiles} compact />
       </div>
     </div>
   )

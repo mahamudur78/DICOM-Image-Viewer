@@ -1,5 +1,6 @@
 import { Enums, utilities } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   MPR_VIEWPORTS,
   getMprViewport,
@@ -9,26 +10,22 @@ import {
 } from '../cornerstone/mpr'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import { resizeViewports } from '../cornerstone/viewer'
-import { MPR_VR_VIEWPORT_ID } from '../cornerstone/volume3d'
+import { MPR_VR_VIEWPORT_ID } from '../cornerstone/constants'
 import type { DisplaySet } from '../dicom/types'
+import { setMprViewportId, useViewer } from '../store/viewerStore'
+import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useVolume } from './useVolume'
 import { VolumeProgress } from './VolumeProgress'
 import { VrViewport } from './VrViewport'
 
-interface MprViewProps {
-  displaySet: DisplaySet
-  activeViewportId: string
-  onActivate: (viewportId: string) => void
-  onError: (message: string) => void
-  /** Adds a 3D rendering of the same volume as a fourth (2×2) viewport. */
-  with3d: boolean
-  preset: string
-}
-
-/** Axial, sagittal and coronal reconstructions of one series, optionally with 3D. */
-export function MprView({ displaySet, activeViewportId, onActivate, onError, with3d, preset }: MprViewProps) {
+/** Axial, sagittal and coronal reconstructions of one series, optionally with a 3D cell (2×2). */
+export function MprView() {
+  const displaySet = useViewer((s) => s.volumeView!.displaySet)
+  const activeViewportId = useViewer((s) => s.mprViewportId)
+  const with3d = useViewer((s) => s.mprWith3d)
+  const preset = useViewer((s) => s.preset)
   const { series } = displaySet
-  const { volumeId, progress } = useVolume(series, onError)
+  const { volumeId, progress } = useVolume(series)
 
   useEffect(() => {
     if (!volumeId) return
@@ -49,7 +46,7 @@ export function MprView({ displaySet, activeViewportId, onActivate, onError, wit
           orientation={orientation}
           displaySet={displaySet}
           active={id === activeViewportId}
-          onActivate={() => onActivate(id)}
+          onActivate={() => setMprViewportId(id)}
         />
       ))}
       {with3d && (
@@ -59,7 +56,7 @@ export function MprView({ displaySet, activeViewportId, onActivate, onError, wit
           preset={preset}
           displaySet={displaySet}
           active={activeViewportId === MPR_VR_VIEWPORT_ID}
-          onActivate={() => onActivate(MPR_VR_VIEWPORT_ID)}
+          onActivate={() => setMprViewportId(MPR_VR_VIEWPORT_ID)}
         />
       )}
       <VolumeProgress volumeId={volumeId} progress={progress} />
@@ -85,6 +82,8 @@ interface MprOverlay {
 }
 
 function MprViewport({ viewportId, label, orientation, displaySet, active, onActivate }: MprViewportProps) {
+  const { t } = useTranslation()
+  const contextMenu = useContextMenuTrigger()
   const elementRef = useRef<HTMLDivElement>(null)
   const [overlay, setOverlay] = useState<MprOverlay>({
     slice: '',
@@ -131,25 +130,28 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
       className={`@container relative min-h-0 min-w-0 overflow-hidden bg-black outline-1 -outline-offset-1 ${
         active ? 'z-10 outline-2 outline-sky-500' : 'outline-slate-800'
       }`}
-      onPointerDownCapture={onActivate}
+      data-viewport-id={viewportId}
+      onPointerDownCapture={(event) => {
+        onActivate()
+        contextMenu.onPointerDownCapture(event)
+      }}
+      onPointerUpCapture={contextMenu.onPointerUpCapture}
       onWheelCapture={active ? undefined : onActivate}
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[40%]">
-          <div className="font-semibold text-sky-300">{label}</div>
-          <div className="truncate @max-xs:hidden">{displaySet.study.patientName}</div>
+          <div className="font-semibold text-sky-300">{t(label)}</div>
+          <div className="truncate @max-xs:hidden">{displaySet.study.patientName || t('viewport.anonymous')}</div>
         </div>
         <div className="absolute right-2 top-2 max-w-[40%] text-right @max-xs:hidden">
-          <div className="truncate">{displaySet.series.description || `Series ${displaySet.series.seriesNumber}`}</div>
-          {overlay.slab > 1 && <div className="text-amber-300">Slab {overlay.slab.toFixed(0)} mm</div>}
+          <div className="truncate">{displaySet.series.description || t('viewport.seriesNumber', { number: displaySet.series.seriesNumber })}</div>
+          {overlay.slab > 1 && <div className="text-amber-300">{t('viewport.slab', { mm: overlay.slab.toFixed(0) })}</div>}
         </div>
         <div className="absolute bottom-2 left-2">
           {overlay.windowWidth !== null && (
-            <div>
-              W: {overlay.windowWidth} L: {overlay.windowCenter}
-            </div>
+            <div>{t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter })}</div>
           )}
         </div>
         <div className="absolute bottom-2 right-2 text-right">{overlay.slice}</div>

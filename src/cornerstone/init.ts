@@ -64,6 +64,9 @@ export function initCornerstone(): Promise<void> {
     createToolGroups()
     registerVolumeLoaders()
     createSynchronizers()
+
+    // Lets the e2e tests inspect viewport state (dev server and `--mode e2e` builds only).
+    if (import.meta.env.DEV || import.meta.env.MODE === 'e2e') Object.assign(window, { __dicomlensEngine: createRenderingEngine })
   })()
   return initPromise
 }

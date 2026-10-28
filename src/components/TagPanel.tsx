@@ -1,7 +1,10 @@
 import type dicomParser from 'dicom-parser'
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { parseHeader } from '../dicom/loadFiles'
 import { TAG_DICTIONARY } from '../dicom/tagDictionary'
+import i18n from '../i18n'
+import { selectCurrentFile, useViewer } from '../store/viewerStore'
 
 interface TagRow {
   tag: string
@@ -60,14 +63,22 @@ function buildRows(dataSet: dicomParser.DataSet): TagRow[] {
       const value = readValue(dataSet, element, vr)
       return {
         tag: formatTag(element.tag),
-        name: name ?? (isPrivate ? 'Private tag' : ''),
+        name: name ?? (isPrivate ? i18n.t('tags.privateTag') : ''),
         vr,
         value: value.length > MAX_VALUE_LENGTH ? `${value.slice(0, MAX_VALUE_LENGTH)}…` : value,
       }
     })
 }
 
-export function TagPanel({ file, onClose }: { file: File; onClose: () => void }) {
+export function TagPanel() {
+  const file = useViewer(selectCurrentFile)
+  const { t } = useTranslation()
+  if (!file) return <p className="p-3 text-sm text-slate-500">{t('tags.noImage')}</p>
+  return <TagTable file={file} />
+}
+
+function TagTable({ file }: { file: File }) {
+  const { t } = useTranslation()
   const [rows, setRows] = useState<TagRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -81,11 +92,11 @@ export function TagPanel({ file, onClose }: { file: File; onClose: () => void })
         setRows(buildRows(parseHeader(buffer)))
         setError(null)
       })
-      .catch(() => !cancelled && setError('Could not read DICOM tags.'))
+      .catch(() => !cancelled && setError(t('tags.readError')))
     return () => {
       cancelled = true
     }
-  }, [file])
+  }, [file, t])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -94,24 +105,14 @@ export function TagPanel({ file, onClose }: { file: File; onClose: () => void })
   }, [rows, query])
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800 bg-slate-900 lg:w-[28rem]">
-      <div className="flex items-center gap-2 border-b border-slate-800 p-3">
-        <h2 className="text-sm font-semibold text-slate-100">DICOM tags</h2>
-        <span className="truncate text-xs text-slate-500">{file.name}</span>
-        <button
-          onClick={onClose}
-          className="ml-auto rounded px-2 py-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-          aria-label="Close tags"
-        >
-          ✕
-        </button>
-      </div>
-      <div className="p-3">
+    <div className="flex h-full flex-col">
+      <div className="space-y-2 p-3">
+        <div className="truncate text-xs text-slate-500">{file.name}</div>
         <input
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search tag, name or value…"
+          placeholder={t('tags.search')}
           className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
         />
       </div>
@@ -122,10 +123,10 @@ export function TagPanel({ file, onClose }: { file: File; onClose: () => void })
           <table className="w-full table-fixed text-left font-mono text-[11px]">
             <thead className="sticky top-0 bg-slate-900 text-slate-500">
               <tr>
-                <th className="w-24 py-1 font-normal">Tag</th>
-                <th className="w-36 py-1 font-normal">Name</th>
-                <th className="w-8 py-1 font-normal">VR</th>
-                <th className="py-1 font-normal">Value</th>
+                <th className="w-24 py-1 font-normal">{t('tags.colTag')}</th>
+                <th className="w-36 py-1 font-normal">{t('tags.colName')}</th>
+                <th className="w-8 py-1 font-normal">{t('tags.colVr')}</th>
+                <th className="py-1 font-normal">{t('tags.colValue')}</th>
               </tr>
             </thead>
             <tbody>
@@ -143,6 +144,6 @@ export function TagPanel({ file, onClose }: { file: File; onClose: () => void })
           </table>
         )}
       </div>
-    </aside>
+    </div>
   )
 }

@@ -8,22 +8,11 @@ import {
 } from '@cornerstonejs/core'
 import { BaseTool, ToolGroupManager, type Types as ToolTypes } from '@cornerstonejs/tools'
 import { VR_TOOL_GROUP_ID } from './tools'
-import { RENDERING_ENGINE_ID, createRenderingEngine } from './viewer'
-
-export const VR_VIEWPORT_ID = 'vr-main'
-/** The 3D cell of the "MPR + 3D" layout. */
-export const MPR_VR_VIEWPORT_ID = 'vr-mpr'
-
-export const isVrViewport = (viewportId: string | null) =>
-  viewportId === VR_VIEWPORT_ID || viewportId === MPR_VR_VIEWPORT_ID
+import { registerViewport, unregisterViewport } from './viewportRegistry'
+import { RENDERING_ENGINE_ID } from './constants'
+import { createRenderingEngine } from './viewer'
 
 export const PRESET_NAMES: string[] = CONSTANTS.VIEWPORT_PRESETS.map((preset) => preset.name)
-
-export function defaultPresetFor(modality: string) {
-  if (modality === 'CT') return 'CT-Bone'
-  if (modality === 'MR') return 'MR-Default'
-  return 'CT-Soft-Tissue'
-}
 
 /** Presets grouped for the dropdown, the series' own modality first. */
 export function groupedPresets(modality: string): { label: string; presets: string[] }[] {
@@ -46,9 +35,11 @@ export function mountVrViewport(viewportId: string, element: HTMLDivElement) {
     defaultOptions: { orientation: Enums.OrientationAxis.CORONAL, background: [0, 0, 0] },
   })
   ToolGroupManager.getToolGroup(VR_TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  registerViewport(viewportId, 'volume3d')
 }
 
 export function unmountVrViewport(viewportId: string) {
+  unregisterViewport(viewportId)
   shiftBaselines.delete(viewportId)
   getRenderingEngine(RENDERING_ENGINE_ID)?.disableElement(viewportId)
 }

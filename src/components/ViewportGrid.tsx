@@ -1,32 +1,16 @@
 import { useState } from 'react'
-import { viewportIdAt } from '../cornerstone/viewer'
-import { SERIES_DRAG_TYPE, type DisplaySet } from '../dicom/types'
-import type { Layout } from './layouts'
+import { useTranslation } from 'react-i18next'
+import { viewportIdAt } from '../cornerstone/constants'
+import { SERIES_DRAG_TYPE } from '../dicom/types'
+import { setActiveCell, setCellIndex, showSeriesInCell, toggleMaximize, useViewer } from '../store/viewerStore'
 import { Viewport } from './Viewport'
 
-interface ViewportGridProps {
-  layout: Layout
-  cells: (DisplaySet | null)[]
-  activeCell: number
-  maximizedCell: number | null
-  onActivate: (cell: number) => void
-  onToggleMaximize: (cell: number) => void
-  onDropSeries: (cell: number, seriesUID: string) => void
-  onIndexChange: (cell: number, index: number) => void
-  onError: (message: string) => void
-}
-
-export function ViewportGrid({
-  layout,
-  cells,
-  activeCell,
-  maximizedCell,
-  onActivate,
-  onToggleMaximize,
-  onDropSeries,
-  onIndexChange,
-  onError,
-}: ViewportGridProps) {
+export function ViewportGrid() {
+  const { t } = useTranslation()
+  const layout = useViewer((s) => s.layout)
+  const cells = useViewer((s) => s.cells)
+  const activeCell = useViewer((s) => s.activeCell)
+  const maximizedCell = useViewer((s) => s.maximizedCell)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const visibleCells =
     maximizedCell !== null ? [maximizedCell] : Array.from({ length: layout.rows * layout.cols }, (_, i) => i)
@@ -57,7 +41,7 @@ export function ViewportGrid({
               event.preventDefault()
               event.stopPropagation()
               setDropTarget(null)
-              onDropSeries(cell, seriesUID)
+              showSeriesInCell(cell, seriesUID)
             }}
           >
             {displaySet ? (
@@ -65,19 +49,18 @@ export function ViewportGrid({
                 viewportId={viewportIdAt(cell)}
                 displaySet={displaySet}
                 active={cell === activeCell}
-                onActivate={() => onActivate(cell)}
-                onToggleMaximize={() => onToggleMaximize(cell)}
-                onIndexChange={(index) => onIndexChange(cell, index)}
-                onError={onError}
+                onActivate={() => setActiveCell(cell)}
+                onToggleMaximize={() => toggleMaximize(cell)}
+                onIndexChange={(index) => setCellIndex(cell, index)}
               />
             ) : (
               <button
-                onClick={() => onActivate(cell)}
+                onClick={() => setActiveCell(cell)}
                 className={`grid h-full w-full place-items-center bg-black text-sm text-slate-500 outline-1 -outline-offset-1 ${
                   cell === activeCell ? 'outline-2 outline-sky-500' : 'outline-slate-800'
                 }`}
               >
-                Drag a series here
+                {t('viewport.dragSeriesHere')}
               </button>
             )}
             {dropTarget === cell && (

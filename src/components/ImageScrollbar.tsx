@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ImageScrollbarProps {
   count: number
@@ -8,6 +9,7 @@ interface ImageScrollbarProps {
 
 /** Thin vertical scrollbar on the viewport edge; drag or click to jump. */
 export function ImageScrollbar({ count, index, onChange }: ImageScrollbarProps) {
+  const { t } = useTranslation()
   const trackRef = useRef<HTMLDivElement>(null)
   const thumbPercent = Math.max(100 / count, 4)
   const topPercent = count > 1 ? (index / (count - 1)) * (100 - thumbPercent) : 0
@@ -26,7 +28,7 @@ export function ImageScrollbar({ count, index, onChange }: ImageScrollbarProps) 
       aria-valuemin={1}
       aria-valuemax={count}
       aria-valuenow={index + 1}
-      aria-label="Slice"
+      aria-label={t('viewport.slice')}
       className="absolute bottom-3 right-1 top-3 z-10 w-2.5 cursor-pointer rounded-full bg-white/10 hover:bg-white/20"
       onPointerDown={(event) => {
         event.stopPropagation()

@@ -14,14 +14,16 @@ import { ToolGroupManager } from '@cornerstonejs/tools'
 import { getImagePlane } from '../dicom/imagePlaneMetadata'
 import type { Series } from '../dicom/types'
 import { MPR_TOOL_GROUP_ID } from './tools'
-import { RENDERING_ENGINE_ID, createRenderingEngine } from './viewer'
+import { MPR_AXIAL_ID, MPR_CORONAL_ID, MPR_SAGITTAL_ID, RENDERING_ENGINE_ID } from './constants'
+import { createRenderingEngine } from './viewer'
+import { registerViewport, unregisterViewport } from './viewportRegistry'
 
 const VOLUME_SCHEME = 'cornerstoneStreamingImageVolume'
 
 export const MPR_VIEWPORTS = [
-  { id: 'mpr-axial', label: 'Axial', orientation: Enums.OrientationAxis.AXIAL },
-  { id: 'mpr-sagittal', label: 'Sagittal', orientation: Enums.OrientationAxis.SAGITTAL },
-  { id: 'mpr-coronal', label: 'Coronal', orientation: Enums.OrientationAxis.CORONAL },
+  { id: MPR_AXIAL_ID, label: 'viewport.axial', orientation: Enums.OrientationAxis.AXIAL },
+  { id: MPR_SAGITTAL_ID, label: 'viewport.sagittal', orientation: Enums.OrientationAxis.SAGITTAL },
+  { id: MPR_CORONAL_ID, label: 'viewport.coronal', orientation: Enums.OrientationAxis.CORONAL },
 ] as const
 
 export type SlabMode = 'mip' | 'minip' | 'avg'
@@ -43,17 +45,13 @@ export function getMprViewport(viewportId: string): Types.IVolumeViewport | unde
   return getRenderingEngine(RENDERING_ENGINE_ID)?.getViewport(viewportId) as Types.IVolumeViewport | undefined
 }
 
-/** Why a series cannot be reconstructed, or null when MPR is possible. */
+/** Why a series cannot be reconstructed (an i18n key), or null when MPR is possible. */
 export function mprUnsupportedReason(series: Series): string | null {
-  if (!series.hasOrientation) return 'This series has no orientation information.'
-  if (series.images.length < 3) return 'MPR needs a series with at least 3 slices.'
-  if (series.images.some((image) => image.imageId.includes('?frame='))) {
-    return 'Multi-frame series are not supported in MPR yet.'
-  }
+  if (!series.hasOrientation) return 'volume.noOrientation'
+  if (series.images.length < 3) return 'volume.tooFewSlices'
+  if (series.images.some((image) => image.imageId.includes('?frame='))) return 'volume.multiFrame'
   const locations = new Set(series.images.map((image) => image.sliceLocation))
-  if (locations.has(null) || locations.size < series.images.length) {
-    return 'Slices must have distinct positions to build a volume.'
-  }
+  if (locations.has(null) || locations.size < series.images.length) return 'volume.duplicatePositions'
   return null
 }
 
@@ -125,9 +123,11 @@ export function mountMprViewport(viewportId: string, orientation: Enums.Orientat
     defaultOptions: { orientation, background: [0, 0, 0] },
   })
   ToolGroupManager.getToolGroup(MPR_TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  registerViewport(viewportId, 'mpr')
 }
 
 export function unmountMprViewport(viewportId: string) {
+  unregisterViewport(viewportId)
   getRenderingEngine(RENDERING_ENGINE_ID)?.disableElement(viewportId)
 }
 

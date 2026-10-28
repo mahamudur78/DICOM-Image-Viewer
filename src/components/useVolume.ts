@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { loadVolume } from '../cornerstone/mpr'
 import type { Series } from '../dicom/types'
+import { t } from '../i18n'
+import { notify } from '../notifications/toastStore'
 
 /**
  * Builds (or reuses from cache) the streaming volume of a series. `volumeId`
  * is set once the geometry is known; `progress` tracks slices streaming in.
  */
-export function useVolume(series: Series, onError: (message: string) => void) {
+export function useVolume(series: Series) {
   const [state, setState] = useState<{ series: Series | null; volumeId: string | null; progress: number }>({
     series: null,
     volumeId: null,
@@ -25,12 +27,13 @@ export function useVolume(series: Series, onError: (message: string) => void) {
         if (!cancelled) setState((current) => ({ series, volumeId, progress: current.series === series ? current.progress : 0 }))
       })
       .catch((error: unknown) => {
-        if (!cancelled) onError(`Could not build the volume: ${error instanceof Error ? error.message : String(error)}`)
+        if (cancelled) return
+        notify(t('messages.volumeFailed', { error: error instanceof Error ? error.message : String(error) }), 'error')
       })
     return () => {
       cancelled = true
     }
-  }, [series, onError])
+  }, [series])
 
   // Ignore results that belong to a previous series.
   const current = state.series === series

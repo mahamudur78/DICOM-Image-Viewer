@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { resizeViewports } from '../cornerstone/viewer'
 import { applyPreset, mountVrViewport, onShiftChange, showVolume3D, unmountVrViewport } from '../cornerstone/volume3d'
 import type { DisplaySet } from '../dicom/types'
+import { useContextMenuTrigger } from './contextMenuTrigger'
 
 interface VrViewportProps {
   viewportId: string
@@ -14,6 +16,8 @@ interface VrViewportProps {
 
 /** One 3D volume rendering viewport; the volume is loaded by the parent. */
 export function VrViewport({ viewportId, volumeId, preset, displaySet, active, onActivate }: VrViewportProps) {
+  const { t } = useTranslation()
+  const contextMenu = useContextMenuTrigger()
   const elementRef = useRef<HTMLDivElement>(null)
   const presetRef = useRef(preset)
   const [shownVolume, setShownVolume] = useState<string | null>(null)
@@ -61,26 +65,28 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
       className={`@container relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-black outline-1 -outline-offset-1 ${
         active ? 'z-10 outline-2 outline-sky-500' : 'outline-slate-800'
       }`}
-      onPointerDownCapture={onActivate}
-      onContextMenu={(event) => event.preventDefault()}
+      data-viewport-id={viewportId}
+      onPointerDownCapture={(event) => {
+        onActivate()
+        contextMenu.onPointerDownCapture(event)
+      }}
+      onPointerUpCapture={contextMenu.onPointerUpCapture}
+      onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[50%]">
-          <div className="font-semibold text-sky-300">3D VR</div>
-          <div className="truncate @max-xs:hidden">{displaySet.study.patientName}</div>
+          <div className="font-semibold text-sky-300">{t('viewport.vr')}</div>
+          <div className="truncate @max-xs:hidden">{displaySet.study.patientName || t('viewport.anonymous')}</div>
         </div>
         <div className="absolute bottom-2 left-2">
           <div>{preset}</div>
           {shift !== 0 && (
-            <div className="text-amber-300">
-              Shift {shift > 0 ? '+' : ''}
-              {Math.round(shift)}
-            </div>
+            <div className="text-amber-300">{t('viewport.shift', { value: `${shift > 0 ? '+' : ''}${Math.round(shift)}` })}</div>
           )}
         </div>
         <div className="absolute bottom-2 right-2 max-w-[45%] truncate text-right @max-xs:hidden">
-          {displaySet.series.description || `Series ${displaySet.series.seriesNumber}`}
+          {displaySet.series.description || t('viewport.seriesNumber', { number: displaySet.series.seriesNumber })}
         </div>
       </div>
     </div>

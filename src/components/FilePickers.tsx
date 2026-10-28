@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { filterCandidates } from '../dicom/collectFiles'
 
 interface FilePickersProps {
@@ -8,6 +9,7 @@ interface FilePickersProps {
 
 /** "Open files" and "Open folder" buttons backed by hidden file inputs. */
 export function FilePickers({ onFiles, compact = false }: FilePickersProps) {
+  const { t } = useTranslation()
   const filesRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
 
@@ -23,13 +25,13 @@ export function FilePickers({ onFiles, compact = false }: FilePickersProps) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
       <button onClick={() => filesRef.current?.click()} className={`${base} bg-sky-600 text-white hover:bg-sky-500`}>
-        Open files
+        {t('files.openFiles')}
       </button>
       <button
         onClick={() => folderRef.current?.click()}
         className={`${base} border border-slate-600 text-slate-200 hover:bg-slate-800`}
       >
-        Open folder
+        {t('files.openFolder')}
       </button>
       <input ref={filesRef} type="file" multiple hidden onChange={handleChange} />
       <input
