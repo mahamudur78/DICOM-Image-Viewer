@@ -1,12 +1,58 @@
 import { utilities } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
 import type { Series } from '../dicom/types'
+import { documentThumbnail } from '../thumbnails/documentThumbnails'
 
 /** Canvas resolution; the canvas is scaled to the thumbnail box with CSS. */
 const RESOLUTION = 256
 
-/** Renders the middle image of a series into a small canvas. */
+const KIND_ICONS = { video: '🎬', pdf: '📄', sr: '📝' }
+
+const BOX = 'relative h-16 w-16 shrink-0 overflow-hidden rounded border border-slate-700 bg-black lg:h-28 lg:w-28'
+
+/** Renders the middle image of a series into a small canvas; videos, PDFs and reports get an icon. */
 export function SeriesThumbnail({ series }: { series: Series }) {
+  if (series.kind === 'sr') return <IconThumbnail icon={KIND_ICONS.sr} />
+  if (series.kind !== 'image') return <DocumentThumbnail series={series} />
+  return <ImageThumbnail series={series} />
+}
+
+const IconThumbnail = ({ icon }: { icon: string }) => (
+  <div className={`${BOX} grid place-items-center bg-slate-800 text-3xl lg:text-5xl`} aria-hidden>
+    {icon}
+  </div>
+)
+
+/** First PDF page or a video frame, made once the thumbnail scrolls into view. */
+function DocumentThumbnail({ series }: { series: Series }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      observer.disconnect()
+      void documentThumbnail(series).then((value) => !cancelled && setUrl(value))
+    })
+    observer.observe(ref.current!)
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
+  }, [series])
+
+  return (
+    <div ref={ref} className={`${BOX} grid place-items-center bg-slate-800 text-3xl lg:text-5xl`}>
+      {url ? <img src={url} alt="" className="h-full w-full object-contain" /> : <span aria-hidden>{KIND_ICONS[series.kind as 'pdf' | 'video']}</span>}
+      <span className="absolute bottom-0.5 right-0.5 text-xs" aria-hidden>
+        {KIND_ICONS[series.kind as 'pdf' | 'video']}
+      </span>
+    </div>
+  )
+}
+
+function ImageThumbnail({ series }: { series: Series }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [failed, setFailed] = useState(false)
 
@@ -19,7 +65,7 @@ export function SeriesThumbnail({ series }: { series: Series }) {
   }, [series])
 
   return (
-    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-slate-700 bg-black lg:h-28 lg:w-28">
+    <div className={BOX}>
       {/* loadImageToCanvas sets an inline pixel size, so the box size must win. */}
       <canvas ref={canvasRef} className="h-full! w-full!" />
       {failed && (

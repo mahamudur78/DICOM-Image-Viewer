@@ -1,9 +1,9 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { filterCandidates } from '../dicom/collectFiles'
+import { filterCandidates, type SourceFile } from '../dicom/collectFiles'
 
 interface FilePickersProps {
-  onFiles: (files: File[]) => void
+  onFiles: (files: SourceFile[]) => void
   compact?: boolean
 }
 

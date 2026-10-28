@@ -28,6 +28,17 @@ export function Toasts() {
             {KIND_ICON[toast.kind]}
           </span>
           <span className="min-w-0 flex-1 break-words">{toast.message}</span>
+          {toast.action && (
+            <button
+              onClick={() => {
+                dismiss(toast.id)
+                toast.action!.run()
+              }}
+              className="shrink-0 rounded px-1.5 font-semibold text-sky-300 hover:bg-slate-800 hover:text-sky-200"
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button
             onClick={() => dismiss(toast.id)}
             aria-label={t('toast.dismiss')}

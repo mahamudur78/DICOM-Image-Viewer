@@ -20,7 +20,9 @@ jobs:
       - run: npm test
       - run: npm run build # also type-checks (tsc -b)
       - run: npm run size
-      - run: npx playwright install --with-deps chromium
+      # ffmpeg makes the video test samples; Google Chrome plays H.264 (Playwright's Chromium cannot).
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npx playwright install --with-deps chromium chrome
       # The production build is what users get; it is served by `vite preview`.
       - run: npm run test:e2e:prod
       - uses: actions/upload-artifact@v4

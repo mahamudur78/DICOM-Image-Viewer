@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০ সম্পন্ন, ফেজ ১ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০ ও ১ সম্পন্ন, ফেজ ২ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -68,28 +68,30 @@
 - [x] **HMR সমস্যা** (Cornerstone init আবার চলা) সমাধান বা dev-এ ঠিকভাবে সামলানো
 - [x] Definition of Done পূরণ
 
-## ফেজ ১: ফাইল খোলা ও ফরম্যাট
+## ফেজ ১: ফাইল খোলা ও ফরম্যাট ✅
 
-- [ ] **ZIP খোলা** (`fflate`, worker-এ): সাধারণ ZIP; ভেতরের ফোল্ডার ও nested ZIP
-- [ ] **পাসওয়ার্ডওয়ালা ZIP** (ZipCrypto/AES; লাইব্রেরি যাচাই) আর পাসওয়ার্ড চাওয়ার ডায়ালগ
-- [ ] **DICOMDIR পার্স:** রোগী → স্টাডি → সিরিজ → ফাইলের ক্রম; ফাইলের নাম বড়/ছোট হাতের অক্ষর আর CD-র পাথ সামলানো
-- [ ] **সাধারণ ছবি খোলা:** JPEG, PNG, BMP, GIF, TIFF (secondary capture হিসেবে দেখানো)
-- [ ] **Multi-frame সম্পূর্ণ সমর্থন:** US, XA, NM, enhanced CT/MR (per-frame functional group থেকে position/orientation)
-- [ ] **CINE playback:**
+> সম্পন্ন 2026-10-28 · বিস্তারিত: [PHASE_1_FILES_PLAN.md](PHASE_1_FILES_PLAN.md) (character set সমর্থন আর একরঙা ছবির ঠিক করাও এই ফেজে যোগ হয়েছে)
+
+- [x] **ZIP খোলা** (`fflate`, worker-এ): সাধারণ ZIP; ভেতরের ফোল্ডার ও nested ZIP
+- [x] **পাসওয়ার্ডওয়ালা ZIP** (ZipCrypto/AES; লাইব্রেরি যাচাই) আর পাসওয়ার্ড চাওয়ার ডায়ালগ
+- [x] **DICOMDIR পার্স:** রোগী → স্টাডি → সিরিজ → ফাইলের ক্রম; ফাইলের নাম বড়/ছোট হাতের অক্ষর আর CD-র পাথ সামলানো
+- [x] **সাধারণ ছবি খোলা:** JPEG, PNG, BMP, GIF, TIFF (secondary capture হিসেবে দেখানো)
+- [x] **Multi-frame সম্পূর্ণ সমর্থন:** US, XA, NM, enhanced CT/MR (per-frame functional group থেকে position/orientation)
+- [x] **CINE playback:**
   - play/pause, FPS (DICOM-এর frame time/rate থেকে ডিফল্ট), loop / bounce, আগের-পরের frame
   - stack (সাধারণ সিরিজ)-এও cine
   - একাধিক viewport একসাথে চালানো (sync cine)
   - কিবোর্ড শর্টকাট
-- [ ] **Color ছবি:** RGB, YBR, palette color ঠিকমতো (US, endoscopy, SC)
-- [ ] **DICOM ভিডিও** (MPEG-2, MPEG-4/H.264, HEVC transfer syntax): `<video>` দিয়ে বাজানো; ব্রাউজারে না চললে স্পষ্ট বার্তা
-- [ ] **Encapsulated PDF:** viewport-এ PDF দেখানো (pdf.js বা ব্রাউজারের নিজস্ব), ডাউনলোড বোতাম
-- [ ] **Structured Report (SR) পড়া:** content tree লেখা হিসেবে দেখানো (measurement SR-এর ছবি-সংযোগ ফেজ ৮-এ)
-- [ ] **ছবি সাজানোর বিকল্প:** instance number, slice position, acquisition time, ফাইলের নাম; সিরিজ-ভিত্তিক বদলানো
-- [ ] **Multi-sequence সিরিজ ভাগ করা:** একই সিরিজে ভিন্ন orientation/echo/b-value/phase থাকলে আলাদা display set
-- [ ] **অসম্পূর্ণ বা ভুল ফাইল:** কোনটা লোড হলো না তার তালিকা আর কারণ; বাকিগুলো দেখানো চালু থাকবে
-- [ ] **বড় স্টাডি:** হাজার হাজার ফাইলে UI জমে যাবে না (পার্সিং worker-এ বা ভাগে ভাগে), অগ্রগতি দেখানো, মেমোরি সীমা ও cache নীতি
-- [ ] **একাধিক রোগী/স্টাডি একসাথে:** সাইডবারে রোগী → স্টাডি → সিরিজ গাছ, ফিল্টার ও সার্চ
-- [ ] Definition of Done পূরণ
+- [x] **Color ছবি:** RGB, YBR, palette color ঠিকমতো (US, endoscopy, SC)
+- [x] **DICOM ভিডিও** (MPEG-2, MPEG-4/H.264, HEVC transfer syntax): `<video>` দিয়ে বাজানো; ব্রাউজারে না চললে স্পষ্ট বার্তা
+- [x] **Encapsulated PDF:** viewport-এ PDF দেখানো (pdf.js বা ব্রাউজারের নিজস্ব), ডাউনলোড বোতাম
+- [x] **Structured Report (SR) পড়া:** content tree লেখা হিসেবে দেখানো (measurement SR-এর ছবি-সংযোগ ফেজ ৮-এ)
+- [x] **ছবি সাজানোর বিকল্প:** instance number, slice position, acquisition time, ফাইলের নাম; সিরিজ-ভিত্তিক বদলানো
+- [x] **Multi-sequence সিরিজ ভাগ করা:** একই সিরিজে ভিন্ন orientation/echo/b-value/phase থাকলে আলাদা display set
+- [x] **অসম্পূর্ণ বা ভুল ফাইল:** কোনটা লোড হলো না তার তালিকা আর কারণ; বাকিগুলো দেখানো চালু থাকবে
+- [x] **বড় স্টাডি:** হাজার হাজার ফাইলে UI জমে যাবে না (পার্সিং worker-এ বা ভাগে ভাগে), অগ্রগতি দেখানো, মেমোরি সীমা ও cache নীতি
+- [x] **একাধিক রোগী/স্টাডি একসাথে:** সাইডবারে রোগী → স্টাডি → সিরিজ গাছ, ফিল্টার ও সার্চ
+- [x] Definition of Done পূরণ
 
 ## ফেজ ২: 2D দেখার টুল
 

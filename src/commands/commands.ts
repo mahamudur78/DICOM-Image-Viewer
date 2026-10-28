@@ -1,16 +1,21 @@
 // Every user action, defined once. Toolbar buttons, keyboard shortcuts and
 // the viewport context menu are all built from this list.
 import { LAYOUTS } from '../components/layouts'
+import type { SortMode } from '../dicom/types'
+import { viewportIdAt } from '../cornerstone/constants'
 import { toolsForMode, type PrimaryTool, type ViewMode } from '../cornerstone/tools'
 import { downloadPng, flip, rotate90, scrollImages, toggleInvert } from '../cornerstone/viewer'
-import { is2dKind, viewportKind, type ViewportKind } from '../cornerstone/viewportRegistry'
+import { is2dKind, isCornerstoneKind, viewportKind, type ViewportKind } from '../cornerstone/viewportRegistry'
+import { changeCineFps, cineStateFor, setCinePlaying, toggleCine } from '../store/cineStore'
 import { useSettings, type LinkSettings } from '../store/settingsStore'
 import { changeMode, resetTargetViewport } from '../store/viewerActions'
+import { videoControllers } from '../video/videoControllers'
 import {
   selectMode,
   selectTargetViewportId,
   setActiveTool,
   setLayout,
+  setSeriesSort,
   togglePanel,
   toggleMprWith3d,
   useViewer,
@@ -26,7 +31,7 @@ export interface CommandContext {
   links: LinkSettings
 }
 
-export type CommandGroup = 'tool' | 'view' | 'mode' | 'layout' | 'link' | 'panel'
+export type CommandGroup = 'tool' | 'view' | 'cine' | 'sort' | 'mode' | 'layout' | 'link' | 'panel'
 
 export interface Command {
   id: string
@@ -54,6 +59,8 @@ export function commandContext(): CommandContext {
 }
 
 const hasViewport = (ctx: CommandContext) => ctx.viewportId !== null
+/** Cornerstone viewports (or an empty cell in the grid, so the buttons keep their place). */
+const isCornerstone = (ctx: CommandContext) => (ctx.kind ? isCornerstoneKind(ctx.kind) : true)
 // Before a viewport mounts its kind is unknown; only 3D mode is known to be 3D.
 const is2d = (ctx: CommandContext) => (ctx.kind ? is2dKind(ctx.kind) : ctx.mode !== '3d')
 const isGrid = (ctx: CommandContext) => ctx.mode === 'grid'
@@ -83,7 +90,7 @@ const toolCommands: Command[] = TOOLS.map(({ tool, icon, key }) => ({
   label: `tools.${tool}`,
   icon,
   keys: [key],
-  isAvailable: (ctx) => toolsForMode(ctx.mode).includes(tool),
+  isAvailable: (ctx) => isCornerstone(ctx) && toolsForMode(ctx.mode).includes(tool),
   isActive: (ctx) => ctx.state.activeTool === tool,
   run: () => setActiveTool(tool),
 }))
@@ -132,6 +139,7 @@ const viewCommands: Command[] = [
     label: 'commands.reset',
     icon: '⟲',
     keys: ['r'],
+    isAvailable: isCornerstone,
     isEnabled: hasViewport,
     run: () => resetTargetViewport(),
   },
@@ -158,10 +166,107 @@ const viewCommands: Command[] = [
     group: 'view',
     label: 'commands.downloadPng',
     icon: '⤓',
+    isAvailable: isCornerstone,
     isEnabled: hasViewport,
     run: onViewport((id) => downloadPng(id, 'dicom-image.png')),
   },
 ]
+
+/** The stack series of the target viewport, when it has more than one image to play. */
+function cineSeries(ctx: CommandContext) {
+  if (ctx.mode !== 'grid' || ctx.kind !== 'stack') return null
+  const series = ctx.state.cells[ctx.state.activeCell]?.series
+  return series && series.images.length > 1 ? series : null
+}
+
+/** Grid cells currently on screen that can play. */
+function visibleCineCells(ctx: CommandContext) {
+  const { layout, maximizedCell, cells } = ctx.state
+  const visible = maximizedCell !== null ? [maximizedCell] : Array.from({ length: layout.rows * layout.cols }, (_, i) => i)
+  return visible.flatMap((cell) => {
+    const series = cells[cell]?.series
+    return series?.kind === 'image' && series.images.length > 1 ? [{ viewportId: viewportIdAt(cell), series }] : []
+  })
+}
+
+/** The controller of the target viewport when it is a video. */
+const video = (ctx: CommandContext) => (ctx.kind === 'video' && ctx.viewportId ? videoControllers.get(ctx.viewportId) : undefined)
+const canPlay = (ctx: CommandContext) => cineSeries(ctx) !== null || video(ctx) !== undefined
+
+const cineCommands: Command[] = [
+  {
+    id: 'cine.toggle',
+    group: 'cine',
+    label: 'cine.playPause',
+    icon: '⏯',
+    keys: [' '],
+    isAvailable: canPlay,
+    run: (ctx) => (video(ctx) ? video(ctx)!.toggle() : toggleCine(ctx.viewportId!, cineSeries(ctx)!)),
+  },
+  {
+    id: 'cine.slower',
+    group: 'cine',
+    label: 'cine.slower',
+    keys: ['['],
+    isAvailable: canPlay,
+    run: (ctx) => (video(ctx) ? video(ctx)!.changeSpeed(-1) : changeCineFps(ctx.viewportId!, cineSeries(ctx)!, -1)),
+  },
+  {
+    id: 'cine.faster',
+    group: 'cine',
+    label: 'cine.faster',
+    keys: [']'],
+    isAvailable: canPlay,
+    run: (ctx) => (video(ctx) ? video(ctx)!.changeSpeed(1) : changeCineFps(ctx.viewportId!, cineSeries(ctx)!, 1)),
+  },
+  {
+    id: 'video.previousFrame',
+    group: 'cine',
+    label: 'video.previousFrame',
+    keys: ['arrowleft', 'arrowup'],
+    isAvailable: (ctx) => video(ctx) !== undefined,
+    run: (ctx) => video(ctx)!.step(-1),
+  },
+  {
+    id: 'video.nextFrame',
+    group: 'cine',
+    label: 'video.nextFrame',
+    keys: ['arrowright', 'arrowdown'],
+    isAvailable: (ctx) => video(ctx) !== undefined,
+    run: (ctx) => video(ctx)!.step(1),
+  },
+  {
+    // Starts every visible cine together; stops them all when they are all playing.
+    id: 'cine.playAll',
+    group: 'cine',
+    label: 'cine.playAll',
+    icon: '▶▶',
+    isAvailable: (ctx) => ctx.mode === 'grid' && visibleCineCells(ctx).length > 1,
+    run: (ctx) => {
+      const cells = visibleCineCells(ctx)
+      const allPlaying = cells.every(({ viewportId, series }) => cineStateFor(viewportId, series).playing)
+      for (const { viewportId, series } of cells) setCinePlaying(viewportId, series, !allPlaying)
+    },
+  },
+]
+
+/** The image series of the target grid cell (sorting applies to stacks). */
+function stackSeries(ctx: CommandContext) {
+  if (ctx.mode !== 'grid' || ctx.kind !== 'stack') return null
+  const series = ctx.state.cells[ctx.state.activeCell]?.series
+  return series && series.images.length > 1 ? series : null
+}
+
+const SORT_MODES: SortMode[] = ['instance', 'position', 'time', 'fileName']
+
+const sortCommands: Command[] = SORT_MODES.map((mode) => ({
+  id: `sort.${mode}`,
+  group: 'sort',
+  label: `sort.${mode}`,
+  isAvailable: (ctx) => stackSeries(ctx) !== null,
+  isActive: (ctx) => stackSeries(ctx)?.sortMode === mode,
+  run: (ctx) => setSeriesSort(stackSeries(ctx)!.id, mode),
+}))
 
 const modeCommands: Command[] = [
   {
@@ -232,6 +337,8 @@ const panelCommands: Command[] = [
 export const COMMANDS: Command[] = [
   ...toolCommands,
   ...viewCommands,
+  ...cineCommands,
+  ...sortCommands,
   ...modeCommands,
   ...layoutCommands,
   ...linkCommands,

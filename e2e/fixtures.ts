@@ -4,6 +4,21 @@ import { join, resolve } from 'node:path'
 
 export const PHANTOM_DIR = resolve('e2e/.data/phantom')
 export const SAMPLES_DIR = resolve('e2e/.data/samples')
+export const LARGE_DIR = resolve('e2e/.data/large')
+export const LARGE_COUNT = 2000
+
+/**
+ * The first files opened after the dev server starts wait for the large
+ * viewer runtime to be compiled, which takes longer while tests run in parallel.
+ */
+export const OPEN_TIMEOUT = 60_000
+
+/** Every file below a folder (the order a folder picker would give). */
+export function filesIn(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => (entry.isDirectory() ? filesIn(join(dir, entry.name)) : [join(dir, entry.name)]))
+}
 
 export const phantomFiles = () =>
   readdirSync(PHANTOM_DIR)
@@ -20,6 +35,11 @@ export const test = base.extend<{ consoleErrors: string[] }>({
         if (message.type() === 'error') errors.push(message.text())
       })
       page.on('pageerror', (error) => errors.push(error.message))
+      if (process.env.E2E_DEBUG) {
+        page.on('requestfailed', (request) => console.log('REQFAIL', request.url(), request.failure()?.errorText))
+        page.on('response', (response) => response.status() >= 400 && console.log('HTTP', response.status(), response.url()))
+        page.on('console', (message) => console.log('CONSOLE', message.type(), message.text().slice(0, 200)))
+      }
       await use(errors)
       expect(errors, 'console errors').toEqual([])
     },
@@ -29,11 +49,22 @@ export const test = base.extend<{ consoleErrors: string[] }>({
 
 export { expect }
 
+/** Waits until opening finished: the viewer, a message or a dialog appears. */
+export const settled = (page: Page) =>
+  page.locator('[data-viewport-id], [role=alert], [role=dialog]').first().waitFor({ timeout: OPEN_TIMEOUT })
+
+/** Opens the app and picks files ("Open files") or a folder ("Open folder"). */
+export async function openInput(page: Page, files: string | string[], { folder = false } = {}) {
+  await page.goto('/')
+  await page.locator(folder ? 'input[type=file][webkitdirectory]' : 'input[type=file][multiple]').first().setInputFiles(files)
+  await settled(page)
+}
+
 /** Opens the app and loads the phantom study through the "Open files" input. */
 export async function openPhantom(page: Page) {
   await page.goto('/')
   await page.locator('input[type=file][multiple]').first().setInputFiles(phantomFiles())
-  await expect(page.locator('[data-viewport-id]')).toHaveCount(4)
+  await expect(page.locator('[data-viewport-id]')).toHaveCount(4, { timeout: OPEN_TIMEOUT })
   await expect(page.getByText('Loading images…')).toHaveCount(0)
 }
 

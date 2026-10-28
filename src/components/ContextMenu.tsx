@@ -4,15 +4,12 @@ import { getCommand, isAvailable, isEnabled } from '../commands/commands'
 import { useCommandContext } from '../commands/useCommands'
 import { closeMenu, useMenu } from './contextMenuTrigger'
 
-/** Commands offered when right-clicking a viewport, in menu order. */
-const VIEWPORT_MENU = [
-  'view.reset',
-  'view.invert',
-  'view.rotate90',
-  'view.flipHorizontal',
-  'view.flipVertical',
-  'view.downloadPng',
-  'panel.tags',
+/** Commands offered when right-clicking a viewport, in sections separated by a line. */
+const VIEWPORT_MENU: { title?: string; commands: string[] }[] = [
+  { commands: ['view.reset', 'view.invert', 'view.rotate90', 'view.flipHorizontal', 'view.flipVertical', 'view.downloadPng'] },
+  { commands: ['cine.toggle', 'cine.playAll'] },
+  { title: 'sort.title', commands: ['sort.instance', 'sort.position', 'sort.time', 'sort.fileName'] },
+  { commands: ['panel.tags'] },
 ]
 
 export function ContextMenu() {
@@ -25,7 +22,10 @@ function Menu({ x, y }: { x: number; y: number }) {
   const ctx = useCommandContext()
   const ref = useRef<HTMLDivElement>(null)
   const [place, setPlace] = useState({ left: x, top: y })
-  const commands = VIEWPORT_MENU.map(getCommand).filter((command) => isAvailable(command, ctx))
+  const sections = VIEWPORT_MENU.map((section) => ({
+    ...section,
+    commands: section.commands.map(getCommand).filter((command) => isAvailable(command, ctx)),
+  })).filter((section) => section.commands.length > 0)
 
   // Keep the menu inside the window.
   useLayoutEffect(() => {
@@ -71,25 +71,35 @@ function Menu({ x, y }: { x: number; y: number }) {
       className="fixed z-50 min-w-48 rounded-lg border border-slate-700 bg-slate-900 py-1 text-sm shadow-xl"
       onContextMenu={(event) => event.preventDefault()}
     >
-      {commands.map((command) => {
-        const key = command.keys?.[0]
-        return (
-          <button
-            key={command.id}
-            role="menuitem"
-            disabled={!isEnabled(command, ctx)}
-            onClick={() => {
-              closeMenu()
-              command.run(ctx)
-            }}
-            className="flex w-full items-center gap-3 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:outline-none disabled:opacity-40"
-          >
-            <span className="w-4 text-center text-slate-400">{command.group === 'panel' ? '🏷' : command.icon}</span>
-            <span className="flex-1">{t(command.label, command.labelValues)}</span>
-            {key?.length === 1 && <kbd className="text-xs text-slate-500">{key.toUpperCase()}</kbd>}
-          </button>
-        )
-      })}
+      {sections.map((section, i) => (
+        <div key={i} role="group" aria-label={section.title && t(section.title)} className={i > 0 ? 'mt-1 border-t border-slate-800 pt-1' : ''}>
+          {section.title && <div className="px-3 pb-0.5 text-xs text-slate-500">{t(section.title)}</div>}
+          {section.commands.map((command) => {
+            const key = command.keys?.[0]
+            const radio = command.group === 'sort'
+            const checked = command.isActive?.(ctx) ?? false
+            return (
+              <button
+                key={command.id}
+                role={radio ? 'menuitemradio' : 'menuitem'}
+                aria-checked={radio ? checked : undefined}
+                disabled={!isEnabled(command, ctx)}
+                onClick={() => {
+                  closeMenu()
+                  command.run(ctx)
+                }}
+                className="flex w-full items-center gap-3 px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:outline-none disabled:opacity-40"
+              >
+                <span className="w-4 text-center text-slate-400">
+                  {radio ? (checked ? '✓' : '') : command.group === 'panel' ? '🏷' : command.icon}
+                </span>
+                <span className="flex-1">{t(command.label, command.labelValues)}</span>
+                {key?.length === 1 && <kbd className="text-xs text-slate-500">{key === ' ' ? 'Space' : key.toUpperCase()}</kbd>}
+              </button>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }

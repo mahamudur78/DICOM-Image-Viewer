@@ -10,7 +10,8 @@ import {
 } from '../cornerstone/constants'
 import type { SlabMode } from '../cornerstone/mpr'
 import type { PrimaryTool, ViewMode } from '../cornerstone/tools'
-import type { DisplaySet, Study } from '../dicom/types'
+import { sortImages } from '../dicom/parse'
+import type { DisplaySet, Series, SortMode, Study } from '../dicom/types'
 
 /** MPR or 3D view of one series, replacing the stack grid while open. */
 export interface VolumeView {
@@ -119,9 +120,9 @@ export function showInCell(cell: number, displaySet: DisplaySet) {
   set((state) => ({ cells: state.cells.map((existing, i) => (i === cell ? displaySet : existing)), activeCell: cell }))
 }
 
-export function showSeriesInCell(cell: number, seriesUID: string) {
+export function showSeriesInCell(cell: number, seriesId: string) {
   for (const study of useViewer.getState().studies) {
-    const series = study.series.find((s) => s.seriesInstanceUID === seriesUID)
+    const series = study.series.find((s) => s.id === seriesId)
     if (series) return showInCell(cell, { study, series })
   }
 }
@@ -189,4 +190,34 @@ export function selectCurrentFile(state: ViewerState): File | null {
   }
   const images = cells[activeCell]?.series.images
   return images?.[cellIndexes[activeCell]]?.file ?? images?.[0]?.file ?? null
+}
+
+/**
+ * Re-sorts a series' images. The series object is replaced everywhere it is
+ * referenced (study list, grid cells, MPR/3D view) so every view updates.
+ */
+export function setSeriesSort(seriesId: string, mode: SortMode) {
+  set((state) => {
+    const replacements = new Map<Series, Series>()
+    const studies = state.studies.map((study) => {
+      const series = study.series.map((s) => {
+        if (s.id !== seriesId || s.sortMode === mode) return s
+        const sorted = { ...s, sortMode: mode, images: sortImages(s.images, mode) }
+        replacements.set(s, sorted)
+        return sorted
+      })
+      return series.some((s, i) => s !== study.series[i]) ? { ...study, series } : study
+    })
+    if (replacements.size === 0) return state
+    const studyOf = new Map(studies.flatMap((study) => study.series.map((s) => [s, study] as const)))
+    const swap = (displaySet: DisplaySet | null) => {
+      const series = displaySet && replacements.get(displaySet.series)
+      return series ? { study: studyOf.get(series)!, series } : displaySet
+    }
+    return {
+      studies,
+      cells: state.cells.map(swap),
+      volumeView: state.volumeView && { ...state.volumeView, displaySet: swap(state.volumeView.displaySet)! },
+    }
+  })
 }

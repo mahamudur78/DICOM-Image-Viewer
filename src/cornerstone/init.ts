@@ -1,4 +1,4 @@
-import { init as coreInit } from '@cornerstonejs/core'
+import { cache, init as coreInit } from '@cornerstonejs/core'
 import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader'
 import {
   AngleTool,
@@ -18,7 +18,7 @@ import {
   init as toolsInit,
 } from '@cornerstonejs/tools'
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
-import { registerVolumeLoaders } from './mpr'
+import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
 import { createToolGroups } from './tools'
 import { createRenderingEngine } from './viewer'
@@ -29,6 +29,7 @@ let initPromise: Promise<void> | null = null
 export function initCornerstone(): Promise<void> {
   initPromise ??= (async () => {
     coreInit()
+    cache.setMaxCacheSize(imageCacheBudget())
     dicomImageLoaderInit({
       maxWebWorkers: Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)),
       // Codec WASM files are copied here by scripts/copy-wasm.mjs.

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PHANTOM_DIR, expect, openPhantom, test, viewport, viewportProperties } from './fixtures'
+import { PHANTOM_DIR, expect, openInput, openPhantom, test, viewport, viewportProperties } from './fixtures'
 
 test('right click opens the viewport menu; right drag still zooms', async ({ page }) => {
   await openPhantom(page)
@@ -8,7 +8,9 @@ test('right click opens the viewport menu; right drag still zooms', async ({ pag
   await target.click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Viewport actions' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveCount(7)
+  await expect(menu.getByRole('menuitem')).toHaveCount(9)
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(4)
+  await expect(menu.getByRole('menuitemradio', { name: 'Instance number' })).toHaveAttribute('aria-checked', 'true')
 
   await menu.getByRole('menuitem', { name: /Invert/ }).click()
   await expect(menu).toHaveCount(0)
@@ -49,8 +51,7 @@ test('link settings survive a reload', async ({ page }) => {
 test('non-DICOM files are reported in a toast', async ({ page }) => {
   const notDicom = join(PHANTOM_DIR, '..', 'not-dicom.bin')
   writeFileSync(notDicom, 'hello')
-  await page.goto('/')
-  await page.locator('input[type=file][multiple]').first().setInputFiles([notDicom])
+  await openInput(page, [notDicom])
   const toast = page.getByRole('alert')
   await expect(toast).toContainText('No DICOM images were found')
   await toast.getByRole('button', { name: 'Dismiss' }).click()

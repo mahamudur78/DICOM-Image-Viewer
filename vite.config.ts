@@ -31,12 +31,22 @@ export default defineConfig({
     // default exports in dev.
     include: [
       'dicom-parser',
+      // Imported on demand; pre-bundled so the dev server never re-optimizes (and reloads) mid-session.
+      '@zip.js/zip.js',
+      'utif2',
+      'mp4-muxer',
+      'pdfjs-dist',
       '@cornerstonejs/codec-charls/decodewasmjs',
       '@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs',
       '@cornerstonejs/codec-libjxl/decodewasmjs',
       '@cornerstonejs/codec-openjpeg/decodewasmjs',
       '@cornerstonejs/codec-openjph/wasmjs',
     ],
+  },
+  server: {
+    // The viewer runtime is large; transform it when the dev server starts
+    // rather than on the first file open.
+    warmup: { clientFiles: ['./src/main.tsx', './src/runtimeEntry.ts'] },
   },
   worker: {
     format: 'es',

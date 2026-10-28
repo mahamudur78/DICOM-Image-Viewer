@@ -67,7 +67,20 @@ export async function showStack(viewportId: string, seriesUID: string, imageIds:
   // Default to the middle of the stack, which is usually the most useful slice.
   const index = rememberedIndex.get(rememberKey(viewportId, seriesUID)) ?? Math.floor(imageIds.length / 2)
   await viewport.setStack(imageIds, Math.min(index, imageIds.length - 1))
+  ensureVisibleWindow(viewportId)
   viewport.render()
+}
+
+/**
+ * A uniform image (e.g. a blank frame) has min = max, so its default window
+ * has zero width, which renders nothing useful and makes vtk log errors.
+ */
+export function ensureVisibleWindow(viewportId: string) {
+  const viewport = getViewport(viewportId)
+  const range = viewport?.getProperties().voiRange
+  if (!viewport || !range || range.upper - range.lower >= 1) return
+  const center = (range.upper + range.lower) / 2
+  viewport.setProperties({ voiRange: { lower: center - 0.5, upper: center + 0.5 } })
 }
 
 export function rememberIndex(viewportId: string, seriesUID: string, index: number) {

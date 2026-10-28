@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Welcome } from './components/Welcome'
-import { collectDroppedFiles } from './dicom/collectFiles'
+import { Dialogs } from './dialogs/Dialogs'
+import { collectDroppedFiles, type SourceFile } from './dicom/collectFiles'
 import { notify } from './notifications/toastStore'
 import { Toasts } from './notifications/Toasts'
 import { loadRuntime, startViewer } from './runtime'
@@ -10,7 +11,7 @@ import { useViewer } from './store/viewerStore'
 const Workspace = lazy(() => loadRuntime().then((m) => ({ default: m.Workspace })))
 
 /** Opens files once the viewer runtime is ready (it may still be downloading). */
-async function openFiles(files: File[]) {
+async function openFiles(files: SourceFile[]) {
   if (files.length === 0) return
   useViewer.setState({ loading: { done: 0, total: files.length } })
   try {
@@ -100,6 +101,7 @@ export default function App() {
       </main>
 
       <Toasts />
+      <Dialogs />
     </div>
   )
 }

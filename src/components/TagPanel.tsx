@@ -1,7 +1,7 @@
 import type dicomParser from 'dicom-parser'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { parseHeader } from '../dicom/loadFiles'
+import { decodedText, parseHeader } from '../dicom/header'
 import { TAG_DICTIONARY } from '../dicom/tagDictionary'
 import i18n from '../i18n'
 import { selectCurrentFile, useViewer } from '../store/viewerStore'
@@ -48,6 +48,15 @@ function readValue(dataSet: dicomParser.DataSet, element: dicomParser.Element, v
       return `[binary: ${element.length} bytes]`
     case 'AT':
       return `[attribute tag]`
+    case 'PN':
+    case 'LO':
+    case 'SH':
+    case 'ST':
+    case 'LT':
+    case 'UT':
+    case 'UC':
+      // Free text may use the object's character set (e.g. UTF-8 or Japanese).
+      return decodedText(dataSet, element.tag) ?? ''
     default:
       return dataSet.string(element.tag) ?? ''
   }

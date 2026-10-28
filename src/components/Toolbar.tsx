@@ -1,7 +1,7 @@
+import { Fragment, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   COMMANDS,
-  getCommand,
   isAvailable,
   isEnabled,
   type Command,
@@ -11,6 +11,7 @@ import {
 import { useCommandContext } from '../commands/useCommands'
 import type { SlabMode } from '../cornerstone/mpr'
 import { setWindow } from '../cornerstone/viewer'
+import { is2dKind } from '../cornerstone/viewportRegistry'
 import { groupedPresets } from '../cornerstone/volume3d'
 import { CT_PRESETS, findPresetIndex } from '../dicom/windowPresets'
 import { openFiles } from '../store/viewerActions'
@@ -63,14 +64,11 @@ function CommandButton({ command, ctx }: { command: Command; ctx: CommandContext
 
 const Divider = () => <div className="mx-1 h-6 w-px bg-slate-700" />
 
-/** Buttons for a command group. Keyboard-only commands (no icon) are skipped. */
-function Group({ group, ctx, exclude = [] }: { group: CommandGroup; ctx: CommandContext; exclude?: string[] }) {
+/** Buttons for command groups. Keyboard-only commands (no icon) and unavailable ones are skipped. */
+function groupButtons(groups: CommandGroup[], ctx: CommandContext) {
   return COMMANDS.filter(
     (command) =>
-      command.group === group &&
-      (command.icon !== undefined || group === 'layout') &&
-      !exclude.includes(command.id) &&
-      isAvailable(command, ctx),
+      groups.includes(command.group) && (command.icon !== undefined || command.group === 'layout') && isAvailable(command, ctx),
   ).map((command) => <CommandButton key={command.id} command={command} ctx={ctx} />)
 }
 
@@ -172,30 +170,33 @@ export function Toolbar() {
   const modality = useViewer((s) => selectCurrentDisplaySet(s)?.series.modality ?? '')
   const show3dControls = mode === '3d' || (mode === 'mpr' && ctx.state.mprWith3d)
 
+  // Sections are separated by a divider; empty ones (e.g. image tools for a PDF) disappear.
+  const sections: ReactNode[][] = [
+    groupButtons(['tool'], ctx),
+    [
+      ...groupButtons(['view'], ctx).filter((button) => button.key !== 'view.downloadPng'),
+      modality === 'CT' && viewportId && is2dKind(kind) && <WindowPresetSelect key="window" viewportId={viewportId} />,
+    ],
+    [
+      ...groupButtons(['mode'], ctx),
+      mode === 'mpr' && <SlabControls key="slab" />,
+      show3dControls && <PresetSelect key="preset" modality={modality} />,
+    ],
+    mode === 'grid' ? groupButtons(['layout'], ctx) : [],
+    mode === 'grid' ? groupButtons(['link'], ctx) : [],
+    [...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'), ...groupButtons(['panel'], ctx)],
+  ].map((section) => section.filter(Boolean))
+
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5">
-      <Group group="tool" ctx={ctx} />
-      <Divider />
-      <Group group="view" ctx={ctx} exclude={['view.downloadPng']} />
-
-      {modality === 'CT' && viewportId && kind !== 'volume3d' && <WindowPresetSelect viewportId={viewportId} />}
-
-      <Divider />
-      <Group group="mode" ctx={ctx} />
-      {mode === 'mpr' && <SlabControls />}
-      {show3dControls && <PresetSelect modality={modality} />}
-
-      {mode === 'grid' && (
-        <>
-          <Group group="layout" ctx={ctx} />
-          <Divider />
-          <Group group="link" ctx={ctx} />
-        </>
-      )}
-
-      <Divider />
-      <CommandButton command={getCommand('view.downloadPng')} ctx={ctx} />
-      <Group group="panel" ctx={ctx} />
+      {sections
+        .filter((section) => section.length > 0)
+        .map((section, i) => (
+          <Fragment key={i}>
+            {i > 0 && <Divider />}
+            {section}
+          </Fragment>
+        ))}
 
       <div className="ml-auto">
         <FilePickers onFiles={openFiles} compact />

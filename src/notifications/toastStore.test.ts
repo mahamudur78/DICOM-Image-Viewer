@@ -26,3 +26,12 @@ describe('notify', () => {
     expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['failed'])
   })
 })
+
+describe('toasts with an action', () => {
+  it('stay until dismissed, so the action can be used', () => {
+    vi.useFakeTimers()
+    notify('3 files could not be opened.', 'warning', { label: 'Details', run: () => {} })
+    vi.advanceTimersByTime(TOAST_DURATION_MS * 3)
+    expect(useToasts.getState().toasts).toHaveLength(1)
+  })
+})

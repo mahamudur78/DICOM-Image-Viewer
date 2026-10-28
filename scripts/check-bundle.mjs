@@ -13,11 +13,13 @@ const BUDGETS = {
   initial: 120,
   // Any single lazy chunk (the Cornerstone/vtk.js runtime is the largest).
   chunk: 900,
-  // All JS, including chunks that load only for MPR/3D.
-  total: 1300,
+  // All JS, including chunks that load only for MPR/3D or for particular
+  // formats (pdf.js and its worker, ZIP, TIFF, MP4 muxing). Phase 1 raised it
+  // from 1300 for those format chunks; none of them load for ordinary DICOM images.
+  total: 1900,
 }
 
-const assets = readdirSync(join(DIST, 'assets')).filter((name) => name.endsWith('.js'))
+const assets = readdirSync(join(DIST, 'assets')).filter((name) => /\.m?js$/.test(name))
 const gzipKb = (name) => gzipSync(readFileSync(join(DIST, 'assets', name))).length / KB
 
 const html = readFileSync(join(DIST, 'index.html'), 'utf8')

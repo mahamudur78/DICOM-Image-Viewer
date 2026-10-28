@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
+import type { SourceFile } from '../dicom/collectFiles'
 import { FilePickers } from './FilePickers'
 
-export function Welcome({ onFiles }: { onFiles: (files: File[]) => void }) {
+export function Welcome({ onFiles }: { onFiles: (files: SourceFile[]) => void }) {
   const { t } = useTranslation()
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-4 text-center">

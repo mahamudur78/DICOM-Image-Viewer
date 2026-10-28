@@ -24,6 +24,8 @@ export function useKeyboardShortcuts(enabled: boolean) {
     if (!enabled) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) return
+      // Space on a focused button presses that button.
+      if (event.key === ' ' && event.target instanceof HTMLButtonElement) return
       const ctx = commandContext()
       const command = commandForKey(event.key.toLowerCase(), ctx)
       if (!command || !isEnabled(command, ctx)) return

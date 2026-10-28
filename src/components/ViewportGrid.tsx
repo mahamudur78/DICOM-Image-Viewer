@@ -1,9 +1,16 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { viewportIdAt } from '../cornerstone/constants'
 import { SERIES_DRAG_TYPE } from '../dicom/types'
 import { setActiveCell, setCellIndex, showSeriesInCell, toggleMaximize, useViewer } from '../store/viewerStore'
 import { Viewport } from './Viewport'
+
+// Downloaded only when such a series is shown (pdf.js alone is several hundred KB).
+const VIEWERS = {
+  video: lazy(() => import('./VideoViewer')),
+  pdf: lazy(() => import('./PdfViewer')),
+  sr: lazy(() => import('./SrViewer')),
+}
 
 export function ViewportGrid() {
   const { t } = useTranslation()
@@ -44,7 +51,19 @@ export function ViewportGrid() {
               showSeriesInCell(cell, seriesUID)
             }}
           >
-            {displaySet ? (
+            {displaySet && displaySet.series.kind !== 'image' ? (
+              <Suspense fallback={<div className="grid h-full place-items-center bg-black text-sm text-slate-500">{t('panels.loading')}</div>}>
+                <DocumentViewer
+                  kind={displaySet.series.kind}
+                  viewportId={viewportIdAt(cell)}
+                  cell={cell}
+                  displaySet={displaySet}
+                  active={cell === activeCell}
+                  onActivate={() => setActiveCell(cell)}
+                  onToggleMaximize={() => toggleMaximize(cell)}
+                />
+              </Suspense>
+            ) : displaySet ? (
               <Viewport
                 viewportId={viewportIdAt(cell)}
                 displaySet={displaySet}
@@ -71,4 +90,10 @@ export function ViewportGrid() {
       })}
     </div>
   )
+}
+
+/** The viewer for a video, PDF or report series. */
+function DocumentViewer({ kind, ...props }: { kind: 'video' | 'pdf' | 'sr' } & React.ComponentProps<typeof VIEWERS.sr>) {
+  const Viewer = VIEWERS[kind] as typeof VIEWERS.sr
+  return <Viewer {...props} />
 }

@@ -22,13 +22,17 @@
     "@cornerstonejs/core": "^5.13.2",
     "@cornerstonejs/dicom-image-loader": "^5.13.2",
     "@cornerstonejs/tools": "^5.13.2",
+    "@zip.js/zip.js": "^2.24.0",
     "dicom-parser": "^1.8.21",
     "events": "^3.3.0",
     "i18next": "^26.5.11",
+    "mp4-muxer": "^5.2.2",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.9",
     "url": "^0.11.4",
+    "utif2": "^4.1.0",
     "zustand": "^5.0.16"
   },
   "devDependencies": {

@@ -14,7 +14,7 @@ npm run build          # type-checks, outputs dist/ (static)
 npm run lint
 npm test               # unit tests (Vitest)
 npm run test:e2e       # browser tests (Playwright) against the dev server
-npm run test:e2e:prod  # the same against a production build
+npm run test:e2e:prod  # the same against a production build (video tests use Google Chrome)
 npm run size           # gzip bundle sizes and budgets (after a build)
 npm run deploy         # build and upload dist/ to Cloudflare Pages
 ```
@@ -44,8 +44,17 @@ separate chunk that starts downloading right after the first render.
 
 ## Features
 
-- Open files or whole folders (button or drag & drop), `.dcm` or extension-less
-- Study / series list, sorted by instance number and slice position
+- Open files or whole folders (button or drag & drop), `.dcm` or extension-less, ZIP archives
+  (nested, ZipCrypto and AES passwords), CD folders with DICOMDIR, and ordinary images
+  (JPEG, PNG, BMP, GIF, WebP, TIFF, converted to Secondary Capture in the browser)
+- Patients → studies → series list with search; series that hold several sequences are split
+- Sorting by instance number, slice position, acquisition time or file name
+- Cine playback (header frame rate, speed, loop / back-and-forth, play all)
+- Enhanced multi-frame CT/MR (per-frame geometry, MPR), colour images (RGB, YBR, palette)
+- DICOM video (H.264 played in the browser, MPEG-2/HEVC offered for download), encapsulated
+  PDF reports (pdf.js) and structured reports as readable text
+- Names in any DICOM character set (UTF-8, Latin, Cyrillic, Arabic, CJK, …); a list of files that
+  could not be opened, with the reason
 - Window/level, pan, zoom, scroll (wheel, arrows, slider)
 - Length, angle, ellipse ROI and probe measurements
 - CT window presets, invert, rotate, flip, reset, PNG export
@@ -59,6 +68,6 @@ separate chunk that starts downloading right after the first render.
   orientation cube, and an "MPR + 3D" 2×2 layout; large volumes ask before loading
 - Right-click menu on viewports, notifications, link settings remembered between visits
 
-Keyboard: `↑/↓` slice · `W P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `I` invert · `R` reset · `T` tags
+Keyboard: `↑/↓` slice · `Space` play/pause · `[` `]` slower/faster · `W P Z M L A E B` tools (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `I` invert · `R` reset · `T` tags
 
 Not for diagnostic use.

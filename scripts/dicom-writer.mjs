@@ -49,12 +49,12 @@ function sequenceItem(elements) {
 const sortByTag = (elements) => [...elements].sort((a, b) => a.tag - b.tag)
 
 /** Builds a Part 10 file: preamble, file meta group and the (tag-sorted) dataset. */
-export function dicomFile({ sopClassUID, sopInstanceUID, elements }) {
+export function dicomFile({ sopClassUID, sopInstanceUID, elements, transferSyntax = EXPLICIT_VR_LE }) {
   const metaBody = Buffer.concat([
     element(0x0002, 0x0001, 'OB', new Uint8Array([0, 1])),
     element(0x0002, 0x0002, 'UI', sopClassUID),
     element(0x0002, 0x0003, 'UI', sopInstanceUID),
-    element(0x0002, 0x0010, 'UI', EXPLICIT_VR_LE),
+    element(0x0002, 0x0010, 'UI', transferSyntax),
     element(0x0002, 0x0012, 'UI', `${UID_ROOT}.99`),
   ])
   const meta = Buffer.concat([element(0x0002, 0x0000, 'UL', metaBody.length), metaBody])
@@ -80,4 +80,30 @@ export function uint16Pixels(values) {
   const bytes = Buffer.alloc(values.length * 2)
   values.forEach((value, i) => bytes.writeUInt16LE(value, i * 2))
   return new Uint8Array(bytes)
+}
+
+/**
+ * Encapsulated (compressed/video) pixel data: undefined length, an empty
+ * basic offset table, one item per fragment, then a sequence delimiter.
+ */
+export function encapsulatedPixelData(fragments) {
+  const item = (bytes) => {
+    const padded = bytes.length % 2 ? Buffer.concat([bytes, Buffer.from([0])]) : bytes
+    const header = Buffer.alloc(8)
+    header.writeUInt16LE(0xfffe, 0)
+    header.writeUInt16LE(0xe000, 2)
+    header.writeUInt32LE(padded.length, 4)
+    return Buffer.concat([header, padded])
+  }
+  const header = Buffer.alloc(12)
+  header.writeUInt16LE(0x7fe0, 0)
+  header.writeUInt16LE(0x0010, 2)
+  header.write('OB', 4, 'latin1')
+  header.writeUInt32LE(0xffffffff, 8)
+  const delimiter = Buffer.alloc(8)
+  delimiter.writeUInt16LE(0xfffe, 0)
+  delimiter.writeUInt16LE(0xe0dd, 2)
+  return Object.assign(Buffer.concat([header, item(Buffer.alloc(0)), ...fragments.map(item), delimiter]), {
+    tag: 0x7fe00010,
+  })
 }

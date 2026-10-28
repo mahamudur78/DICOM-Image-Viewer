@@ -12,14 +12,17 @@ import {
 } from '../cornerstone/mpr'
 import { setSliceSync, setVoiSync } from '../cornerstone/sync'
 import { DEFAULT_TOOL, setPrimaryTool, setReferenceLines, type ViewMode } from '../cornerstone/tools'
-import { forgetRememberedIndexes, resetView, setActiveSource } from '../cornerstone/viewer'
+import { forgetRememberedIndexes, rememberIndex, resetView, setActiveSource } from '../cornerstone/viewer'
 import { viewportKind } from '../cornerstone/viewportRegistry'
 import { resetVr } from '../cornerstone/volume3d'
 import { hangingOrder } from '../dicom/hangingProtocol'
+import type { SourceFile } from '../dicom/collectFiles'
 import { loadFiles, releaseLoadedImages } from '../dicom/loadFiles'
+import { askPassword, showIssues } from '../dialogs/dialogStore'
 import type { DisplaySet, Series, Study } from '../dicom/types'
 import { t } from '../i18n'
 import { notify } from '../notifications/toastStore'
+import { clearDocumentThumbnails } from '../thumbnails/documentThumbnails'
 import { useSettings } from './settingsStore'
 import {
   beginLoading,
@@ -27,6 +30,7 @@ import {
   selectActiveDisplaySet,
   selectMode,
   selectTargetViewportId,
+  setLayout,
   setLoadingProgress,
   showInCell,
   showStudies,
@@ -36,23 +40,27 @@ import {
 } from './viewerStore'
 
 /** Reads files locally and shows them, replacing the current study. */
-export async function openFiles(files: File[]) {
+export async function openFiles(files: SourceFile[]) {
   if (files.length === 0) return
   // Unmount every viewport before releasing the images they display.
   beginLoading(files.length)
   await new Promise((resolve) => setTimeout(resolve)) // let React commit the unmount
   releaseLoadedImages()
+  clearDocumentThumbnails()
   forgetRememberedIndexes()
 
-  const result = await loadFiles(files, setLoadingProgress)
+  const result = await loadFiles(files, { onProgress: setLoadingProgress, askPassword })
   const displaySets = hangingOrder(result.studies)
+  const details = { label: t('messages.details'), run: () => showIssues(result.issues) }
   if (displaySets.length === 0) {
     useViewer.setState({ loading: null })
-    notify(t('messages.noImages'), 'error')
+    notify(t('messages.noImages'), 'error', result.issues.length ? details : undefined)
     return
   }
   showStudies(result.studies, displaySets)
-  if (result.skipped > 0) notify(t('messages.skippedFiles', { count: result.skipped }))
+  // Duplicates are listed in the details but are not a failure on their own.
+  const failed = result.issues.filter((issue) => issue.reason !== 'duplicate').length
+  if (failed > 0) notify(t('messages.skippedFiles', { count: failed }), 'warning', details)
 }
 
 /**
@@ -131,4 +139,27 @@ export function useCornerstoneBridge() {
     setSliceSync(links.sliceSync)
     setVoiSync(links.voiSync)
   }, [ready, links.sliceSync, links.voiSync])
+}
+
+/**
+ * Shows the image a report or key object refers to, next to the cell that
+ * refers to it (switching to a 1×2 layout when only one cell is visible).
+ */
+export function showReferencedImage(fromCell: number, sopInstanceUID: string, frame?: number) {
+  const { studies, layout, maximizedCell } = useViewer.getState()
+  for (const study of studies) {
+    for (const series of study.series) {
+      const index = series.images.findIndex(
+        (image) => image.sopInstanceUID === sopInstanceUID && (!frame || image.frame === frame || image.frame === 0),
+      )
+      if (index < 0 || series.kind !== 'image') continue
+      const singleCell = layout.rows * layout.cols === 1 || maximizedCell !== null
+      if (singleCell) setLayout({ rows: 1, cols: 2 })
+      const target = fromCell === 0 ? 1 : 0
+      rememberIndex(viewportIdAt(target), series.id, index)
+      showInCell(target, { study, series })
+      return
+    }
+  }
+  notify(t('sr.imageNotLoaded'))
 }

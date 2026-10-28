@@ -13,7 +13,9 @@ import {
 } from '../cornerstone/viewer'
 import type { DisplaySet } from '../dicom/types'
 import { notify } from '../notifications/toastStore'
+import { CineControls } from './CineControls'
 import { useContextMenuTrigger } from './contextMenuTrigger'
+import { useCinePlayback } from './useCinePlayback'
 import { ImageScrollbar } from './ImageScrollbar'
 
 interface ViewportProps {
@@ -61,6 +63,7 @@ export function Viewport({
   const [loadedSeries, setLoadedSeries] = useState<DisplaySet['series'] | null>(null)
   const loading = loadedSeries !== series
   const count = series.images.length
+  useCinePlayback(viewportId, elementRef, series)
 
   useEffect(() => {
     onIndexChangeRef.current = onIndexChange
@@ -77,7 +80,7 @@ export function Viewport({
       const voi = viewport.getProperties().voiRange
       const image = viewport.getCornerstoneImage()
       const index = viewport.getCurrentImageIdIndex()
-      rememberIndex(viewportId, seriesRef.current.seriesInstanceUID, index)
+      rememberIndex(viewportId, seriesRef.current.id, index)
       onIndexChangeRef.current(index)
       setOverlay({
         index,
@@ -105,7 +108,7 @@ export function Viewport({
     let cancelled = false
     showStack(
       viewportId,
-      series.seriesInstanceUID,
+      series.id,
       series.images.map((image) => image.imageId),
     )
       .catch((error: unknown) => {
@@ -165,12 +168,16 @@ export function Viewport({
         {markers && (
           <div className="text-sm font-semibold text-amber-200/90">
             <span className="absolute left-1/2 top-2 -translate-x-1/2">{markers.top}</span>
-            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 @max-xs:bottom-10">{markers.bottom}</span>
+            <span className={`absolute left-1/2 -translate-x-1/2 ${count > 1 ? 'bottom-11 @max-xs:bottom-16' : 'bottom-2 @max-xs:bottom-10'}`}>
+              {markers.bottom}
+            </span>
             <span className="absolute left-2 top-1/2 -translate-y-1/2">{markers.left}</span>
             <span className="absolute right-5 top-1/2 -translate-y-1/2">{markers.right}</span>
           </div>
         )}
       </div>
+
+      {count > 1 && <CineControls viewportId={viewportId} series={series} />}
 
       {count > 1 && (
         <ImageScrollbar count={count} index={overlay.index} onChange={(index) => void setImageIndex(viewportId, index)} />

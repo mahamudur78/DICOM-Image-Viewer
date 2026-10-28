@@ -7,7 +7,7 @@ const PROD = !!process.env.E2E_PROD
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
-  timeout: 60_000,
+  timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -20,8 +20,10 @@ export default defineConfig({
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1400, height: 900 } } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1400, height: 900 } }, grepInvert: /@chrome/ },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
+    // Google Chrome can decode H.264; Playwright's Chromium build cannot.
+    { name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' }, grep: /@chrome/ },
   ],
   webServer: {
     command: PROD

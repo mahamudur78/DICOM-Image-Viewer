@@ -47,15 +47,16 @@ export function getMprViewport(viewportId: string): Types.IVolumeViewport | unde
 
 /** Why a series cannot be reconstructed (an i18n key), or null when MPR is possible. */
 export function mprUnsupportedReason(series: Series): string | null {
+  // Enhanced multi-frame objects work too: each frame has its own position.
   if (!series.hasOrientation) return 'volume.noOrientation'
   if (series.images.length < 3) return 'volume.tooFewSlices'
-  if (series.images.some((image) => image.imageId.includes('?frame='))) return 'volume.multiFrame'
+  if (series.kind !== 'image') return 'volume.notImages'
   const locations = new Set(series.images.map((image) => image.sliceLocation))
   if (locations.has(null) || locations.size < series.images.length) return 'volume.duplicatePositions'
   return null
 }
 
-const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.seriesInstanceUID}`
+const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.id}`
 
 export function isVolumeCached(series: Series) {
   return !!cache.getVolume(volumeIdFor(series))
@@ -67,11 +68,24 @@ export function estimateVolumeBytes(series: Series) {
   return plane ? plane.rows * plane.columns * series.images.length * 2 : 0
 }
 
-/** Budget above which building a volume asks for confirmation; smaller on phones. */
-export function volumeMemoryBudget() {
+/** Phones, tablets and low-memory devices get smaller memory budgets. */
+export function isSmallDevice() {
   const deviceMemoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
-  const smallDevice = window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)
-  return (smallDevice ? 192 : 512) * 1024 * 1024
+  return window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)
+}
+
+/** Budget above which building a volume asks for confirmation. */
+export function volumeMemoryBudget() {
+  return (isSmallDevice() ? 192 : 512) * 1024 * 1024
+}
+
+/**
+ * Decoded images and volumes kept in memory. When the cache is full,
+ * Cornerstone drops the least recently used images and decodes them again
+ * when they are shown; volumes must fit, so the limit stays above the volume budget.
+ */
+export function imageCacheBudget() {
+  return (isSmallDevice() ? 384 : 1536) * 1024 * 1024
 }
 
 let webgl2: boolean | null = null
