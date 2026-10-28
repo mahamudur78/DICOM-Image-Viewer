@@ -5,6 +5,7 @@ import { groupedPresets } from '../cornerstone/volume3d'
 import { FilePickers } from './FilePickers'
 import { LAYOUTS, type Layout } from './layouts'
 import { LINK_BUTTONS, TOOL_BUTTONS, type LinkSettings } from './toolButtons'
+import { useViewportVoi } from './useViewportVoi'
 
 interface ToolbarProps {
   mode: ViewMode
@@ -106,6 +107,39 @@ function PresetSelect({ modality, preset, onChange }: { modality: string; preset
   )
 }
 
+/**
+ * Shows the preset matching the viewport's current window, or the window
+ * itself once it has been changed some other way (e.g. by dragging).
+ */
+function WindowPresetSelect({ viewportId }: { viewportId: string }) {
+  const voi = useViewportVoi(viewportId)
+  // ±1 because a DICOM window of 400/40 is stored as the range -160..239 (width 399).
+  const matching = voi
+    ? CT_PRESETS.findIndex((p) => Math.abs(p.width - voi.width) <= 1 && Math.abs(p.center - voi.center) <= 1)
+    : -1
+
+  return (
+    <select
+      aria-label="Window preset"
+      value={matching >= 0 ? String(matching) : ''}
+      onChange={(event) => {
+        const windowPreset = CT_PRESETS[Number(event.target.value)]
+        if (windowPreset) setWindow(viewportId, windowPreset.width, windowPreset.center)
+      }}
+      className={`ml-1 ${SELECT_CLASS}`}
+    >
+      <option value="" disabled>
+        {voi && matching < 0 ? `W/L ${voi.width}/${voi.center}` : 'W/L preset'}
+      </option>
+      {CT_PRESETS.map((p, index) => (
+        <option key={p.label} value={index}>
+          {p.label} ({p.width}/{p.center})
+        </option>
+      ))}
+    </select>
+  )
+}
+
 export function Toolbar({
   mode,
   onModeChange,
@@ -166,27 +200,7 @@ export function Toolbar({
         ⟲
       </IconButton>
 
-      {modality === 'CT' && viewportId && !viewportIs3d && (
-        <select
-          aria-label="Window preset"
-          defaultValue=""
-          onChange={(event) => {
-            const windowPreset = CT_PRESETS[Number(event.target.value)]
-            if (windowPreset) setWindow(viewportId, windowPreset.width, windowPreset.center)
-            event.target.value = ''
-          }}
-          className={`ml-1 ${SELECT_CLASS}`}
-        >
-          <option value="" disabled>
-            W/L preset
-          </option>
-          {CT_PRESETS.map((p, index) => (
-            <option key={p.label} value={index}>
-              {p.label} ({p.width}/{p.center})
-            </option>
-          ))}
-        </select>
-      )}
+      {modality === 'CT' && viewportId && !viewportIs3d && <WindowPresetSelect viewportId={viewportId} />}
 
       <Divider />
 
