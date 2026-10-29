@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৪ সম্পন্ন, ফেজ ৫ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৫ সম্পন্ন, ফেজ ৬ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -178,43 +178,43 @@
 ## ফেজ ৫: Export, প্রিন্ট ও anonymize
 
 **ছবি ও মুভি**
-- [ ] Export ফরম্যাট: PNG, JPEG (মান নির্বাচন), BMP, TIFF, WebP
-- [ ] কী export হবে: এখনকার viewport, পুরো সিরিজ, সব খোলা viewport, নির্বাচিত ছবি
-- [ ] Annotation/overlay/রোগীর তথ্য সহ বা ছাড়া (privacy)
-- [ ] রেজোলিউশন: স্ক্রিনের মাপে বা মূল পিক্সেল মাপে
-- [ ] একাধিক ছবি → ZIP
-- [ ] **মুভি:** সিরিজ বা cine → MP4 (WebCodecs/`MediaRecorder`), WebM, GIF, আর AVI/WMV (যেখানে সম্ভব; না হলে নোটে কারণ)
-- [ ] **Clipboard-এ কপি** (Ctrl+C) আর **নির্দিষ্ট অংশ সিলেক্ট করে ক্যাপচার**
-- [ ] মূল DICOM ফাইল export (সিরিজ/স্টাডি → ZIP)
+- [x] Export ফরম্যাট: PNG, JPEG (মান নির্বাচন), BMP, TIFF, WebP
+- [x] কী export হবে: এখনকার viewport, পুরো সিরিজ, সব খোলা viewport, নির্বাচিত ছবি
+- [x] Annotation/overlay/রোগীর তথ্য সহ বা ছাড়া (privacy)
+- [x] রেজোলিউশন: স্ক্রিনের মাপে বা মূল পিক্সেল মাপে
+- [x] একাধিক ছবি → ZIP
+- [x] **মুভি:** সিরিজ বা cine → MP4 (WebCodecs/`MediaRecorder`), WebM, GIF, আর AVI/WMV (যেখানে সম্ভব; না হলে নোটে কারণ) — AVI (MJPEG) হয়েছে, WMV ব্রাউজারে সম্ভব নয়
+- [x] **Clipboard-এ কপি** (Ctrl+C) আর **নির্দিষ্ট অংশ সিলেক্ট করে ক্যাপচার**
+- [x] মূল DICOM ফাইল export (সিরিজ/স্টাডি → ZIP)
 
 **প্রিন্ট ও PDF**
-- [ ] প্রিন্ট লেআউট: এক পাতায় ১, ২, ৪, ৬, ৯, ১২ ছবি; পাতার সাইজ (A4, Letter), দিক
-- [ ] হেডার (রোগী/স্টাডির তথ্য, ঐচ্ছিক) আর ফুটার
-- [ ] 2D, MPR আর 3D ভিউ থেকে প্রিন্ট
-- [ ] PDF ফাইল হিসেবে সেভ
-- [ ] Film-এর মতো মাপের প্রিন্ট (true size, ঐচ্ছিক)
+- [x] প্রিন্ট লেআউট: এক পাতায় ১, ২, ৪, ৬, ৯, ১২ ছবি; পাতার সাইজ (A4, Letter), দিক
+- [x] হেডার (রোগী/স্টাডির তথ্য, ঐচ্ছিক) আর ফুটার
+- [x] 2D, MPR আর 3D ভিউ থেকে প্রিন্ট
+- [x] PDF ফাইল হিসেবে সেভ
+- [x] Film-এর মতো মাপের প্রিন্ট (true size, ঐচ্ছিক)
 
 **DICOM tag**
-- [ ] Tag export: TXT, CSV, JSON (একটা ফাইল বা পুরো সিরিজ)
-- [ ] Sequence (nested) tag ঠিকমতো দেখানো ও export
-- [ ] প্রিয় tag-এর তালিকা (উপরে পিন করা)
-- [ ] দুটো ফাইলের tag তুলনা (diff)
-- [ ] **Tag edit:** মান বদলানো, যোগ, মুছে ফেলা → নতুন DICOM ফাইল ডাউনলোড (`dcmjs`)
+- [x] Tag export: TXT, CSV, JSON (একটা ফাইল বা পুরো সিরিজ)
+- [x] Sequence (nested) tag ঠিকমতো দেখানো ও export
+- [x] প্রিয় tag-এর তালিকা (উপরে পিন করা)
+- [x] দুটো ফাইলের tag তুলনা (diff)
+- [x] **Tag edit:** মান বদলানো, যোগ, মুছে ফেলা → নতুন DICOM ফাইল ডাউনলোড (`dcmjs`)
 
 **Anonymization**
-- [ ] DICOM PS3.15 Basic Application Confidentiality Profile অনুযায়ী tag মোছা বা বদলানো
-- [ ] বিকল্প: তারিখ রাখা/সরানো, UID নতুন করা (স্টাডির ভেতরে সম্পর্ক ঠিক রেখে), private tag মোছা, বর্ণনা রাখা
-- [ ] Template সেভ (যেমন "গবেষণা", "শিক্ষা")
-- [ ] নতুন রোগীর নাম/ID বসানো
-- [ ] এক ফাইল, সিরিজ, স্টাডি বা সব একসাথে (batch) → ZIP
-- [ ] Burned-in annotation সতর্কতা (`BurnedInAnnotation` tag, US/SC) আর পিক্সেলের অংশ ঢাকার টুল (ফেজ ৩-এর redaction ব্যবহার করে)
-- [ ] Anonymize করার পর যাচাই রিপোর্ট (কোন tag বদলেছে)
+- [x] DICOM PS3.15 Basic Application Confidentiality Profile অনুযায়ী tag মোছা বা বদলানো
+- [x] বিকল্প: তারিখ রাখা/সরানো, UID নতুন করা (স্টাডির ভেতরে সম্পর্ক ঠিক রেখে), private tag মোছা, বর্ণনা রাখা
+- [x] Template সেভ (যেমন "গবেষণা", "শিক্ষা")
+- [x] নতুন রোগীর নাম/ID বসানো
+- [x] এক ফাইল, সিরিজ, স্টাডি বা সব একসাথে (batch) → ZIP
+- [x] Burned-in annotation সতর্কতা (`BurnedInAnnotation` tag, US/SC) আর পিক্সেলের অংশ ঢাকার টুল (ফেজ ৩-এর redaction ব্যবহার করে)
+- [x] Anonymize করার পর যাচাই রিপোর্ট (কোন tag বদলেছে)
 
 **রূপান্তর**
-- [ ] সাধারণ ছবি (JPEG/PNG) → DICOM (secondary capture), রোগী/স্টাডির তথ্য দিয়ে, এক বা অনেক
-- [ ] PDF → encapsulated PDF DICOM
-- [ ] Transfer syntax বদলানো (compressed → uncompressed; ঐচ্ছিক উল্টোটাও)
-- [ ] Definition of Done পূরণ
+- [x] সাধারণ ছবি (JPEG/PNG) → DICOM (secondary capture), রোগী/স্টাডির তথ্য দিয়ে, এক বা অনেক
+- [x] PDF → encapsulated PDF DICOM
+- [x] Transfer syntax বদলানো (compressed → uncompressed; উল্টোটা বাদ রাখা হয়েছে, নোট দেখুন)
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_5_EXPORT_PRINT_ANONYMIZE_PLAN.md](PHASE_5_EXPORT_PRINT_ANONYMIZE_PLAN.md))
 
 ## ফেজ ৬: উন্নত MPR ও 3D
 

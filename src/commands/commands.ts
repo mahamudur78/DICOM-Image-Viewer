@@ -47,6 +47,7 @@ import { filterCandidates } from '../dicom/collectFiles'
 import { addFiles, compareWithPrior, reapplyHanging, saveHangingRule } from '../store/viewerActions'
 import { manageHangingRules } from '../dialogs/dialogStore'
 import { DEFAULT_KEYMAP } from './keymap'
+import { exportCommands } from './exportCommands'
 import { measureCommands } from './measureCommands'
 import {
   selectMode,
@@ -92,6 +93,7 @@ export type CommandGroup =
   | 'panel'
   | 'measure'
   | 'compare'
+  | 'export'
 
 export interface Command {
   id: string
@@ -784,6 +786,7 @@ const ALL_COMMANDS: Command[] = [
   ...panelCommands,
   ...measureCommands,
   ...compareCommands,
+  ...exportCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

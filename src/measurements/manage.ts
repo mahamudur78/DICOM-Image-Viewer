@@ -13,7 +13,7 @@ import { notify } from '../notifications/toastStore'
 import { setActiveCell, showInCell, useViewer } from '../store/viewerStore'
 import { parseMeasurementFile, toCsv, toMeasurementFile, type StoredMeasurement, type Vec3 } from './fileFormat'
 import { joinGroup } from './groups'
-import { measureAnnotation, measureData, pointsOf, setUserCalibration, toolNameOf } from './measure'
+import { imageGeometry, measureAnnotation, measureData, pointsOf, setUserCalibration, toIndex, toolNameOf } from './measure'
 import { annotationLines } from './text'
 import { CalibrationTool, MEASUREMENT_TOOLS } from './tools'
 
@@ -452,5 +452,19 @@ export function redactionPolygons(viewportId: string): Types.Point2[][] {
     .map((a) => {
       const [topLeft, topRight, bottomLeft, bottomRight] = pointsOf(a).map((p) => viewport.worldToCanvas(p))
       return [topLeft, topRight, bottomRight, bottomLeft]
+    })
+}
+
+/** Redaction boxes of an image as pixel rectangles (columns and rows, inclusive). */
+export function redactionPixelBoxes(imageId: string) {
+  const geometry = imageGeometry(imageId)
+  if (!geometry) return []
+  return allMeasurements()
+    .filter((a) => toolNameOf(a) === 'Redaction' && imageIdOf(a) === imageId)
+    .map((a) => {
+      const points = pointsOf(a).map((p) => toIndex(geometry, p))
+      const xs = points.map((p) => p[0])
+      const ys = points.map((p) => p[1])
+      return { x0: Math.floor(Math.min(...xs)), y0: Math.floor(Math.min(...ys)), x1: Math.ceil(Math.max(...xs)), y1: Math.ceil(Math.max(...ys)) }
     })
 }

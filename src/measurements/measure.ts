@@ -38,7 +38,7 @@ export interface MeasurementResult {
   values?: Float64Array
 }
 
-interface ImageGeometry {
+export interface ImageGeometry {
   rows: number
   columns: number
   origin: number[]
@@ -49,7 +49,7 @@ interface ImageGeometry {
   spacingY: number
 }
 
-function imageGeometry(imageId: string): ImageGeometry | null {
+export function imageGeometry(imageId: string): ImageGeometry | null {
   const plane = metaData.get('imagePlaneModule', imageId) as
     | { rows: number; columns: number; imagePositionPatient?: number[]; rowCosines?: number[]; columnCosines?: number[]; rowPixelSpacing?: number; columnPixelSpacing?: number }
     | undefined
@@ -66,7 +66,7 @@ function imageGeometry(imageId: string): ImageGeometry | null {
 }
 
 /** Image (column, row) of a world point. */
-function toIndex(g: ImageGeometry, world: Types.Point3): Point {
+export function toIndex(g: ImageGeometry, world: Types.Point3): Point {
   const d = [world[0] - g.origin[0], world[1] - g.origin[1], world[2] - g.origin[2]]
   const along = (v: number[]) => d[0] * v[0] + d[1] * v[1] + d[2] * v[2]
   return [along(g.row) / g.spacingX, along(g.column) / g.spacingY]

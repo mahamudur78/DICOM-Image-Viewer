@@ -46,7 +46,8 @@ export function setActiveSource(sourceViewportId: string | null) {
   if (!engine) return
   const mounted = engine
     .getViewports()
-    .filter((viewport) => viewport.type === Enums.ViewportType.STACK)
+    // Grid cells only (not the hidden viewport used for exports).
+    .filter((viewport) => viewport.type === Enums.ViewportType.STACK && viewport.id.startsWith('viewport-'))
     .map((viewport) => viewport.id)
   const source = sourceViewportId && mounted.includes(sourceViewportId) ? sourceViewportId : null
   setSyncSource(RENDERING_ENGINE_ID, mounted, source)

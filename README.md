@@ -36,6 +36,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
 | `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
+| `src/export/` | Image, movie, print/PDF export (own BMP/TIFF/GIF/AVI/PDF encoders), anonymization, tag editing, conversion |
 | `src/measurements/` | Measurement tools, their values (calibration, statistics), groups, panel actions, JSON/CSV |
 | `src/components/`, `src/panels/` | React UI; side panels are registered in `src/panels/panels.ts` |
 | `src/notifications/` | Toasts and error boundaries |
@@ -86,9 +87,17 @@ separate chunk that starts downloading right after the first render.
   slices, window/level, zoom/pan and cine for the linked viewports, a 3D cursor (Shift+click) that
   takes every viewport — and MPR — to a point, reference lines of the active or every viewport with
   the first and last slice, series that keep their view, and a series in its own browser window
+- Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
+  seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
+  movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or
+  save PDF (1–12 images per page, A4/Letter, header and footer, true size); original DICOM files
+- DICOM tools: tag export (TXT, CSV, JSON, nested sequences), pinned tags, comparing two files, editing
+  tags into a new file, uncompressed copies, anonymization by the PS3.15 Basic Profile (options,
+  templates, consistent new UIDs, redaction burned into the pixels, a report), and converting images
+  and PDFs to DICOM
 - Measurements panel: jump to the image, label, colour, hide, delete (image / series / all), undo
   and redo, copy onto another slice, copy values, CSV export, save and load as JSON
 
-Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
+Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Ctrl+C` copy image · `Ctrl+S` export images · `Ctrl+P` print · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

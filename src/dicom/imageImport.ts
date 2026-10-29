@@ -50,10 +50,14 @@ export interface ImportStudy {
   studyInstanceUID: string
   date: string
   time: string
+  /** Patient and study details given when converting (empty when just opening images). */
+  patientName?: string
+  patientId?: string
+  description?: string
 }
 
-export function newImportStudy(): ImportStudy {
-  return { studyInstanceUID: newUid(), ...dicomDateTime(new Date()) }
+export function newImportStudy(details: Pick<ImportStudy, 'patientName' | 'patientId' | 'description'> = {}): ImportStudy {
+  return { studyInstanceUID: newUid(), ...dicomDateTime(new Date()), ...details }
 }
 
 /**
@@ -75,10 +79,10 @@ export async function imageToDicom(source: SourceFile, format: ImageFormat, stud
       element(0x0008, 0x0033, 'TM', study.time),
       element(0x0008, 0x0060, 'CS', 'OT'),
       element(0x0008, 0x0064, 'CS', 'WSD'), // conversion type: workstation
-      element(0x0008, 0x1030, 'LO', 'Imported images'),
+      element(0x0008, 0x1030, 'LO', (study.description || 'Imported images').slice(0, 64)),
       element(0x0008, 0x103e, 'LO', name.slice(0, 64)),
-      element(0x0010, 0x0010, 'PN', ''),
-      element(0x0010, 0x0020, 'LO', ''),
+      element(0x0010, 0x0010, 'PN', study.patientName ?? ''),
+      element(0x0010, 0x0020, 'LO', study.patientId ?? ''),
       element(0x0020, 0x000d, 'UI', study.studyInstanceUID),
       element(0x0020, 0x000e, 'UI', seriesUID),
       element(0x0020, 0x0011, 'IS', seriesNumber),

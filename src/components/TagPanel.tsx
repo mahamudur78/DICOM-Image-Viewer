@@ -1,82 +1,23 @@
-import type dicomParser from 'dicom-parser'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { decodedText, parseHeader } from '../dicom/header'
-import { TAG_DICTIONARY } from '../dicom/tagDictionary'
-import i18n from '../i18n'
-import { selectCurrentFile, useViewer } from '../store/viewerStore'
+import { parseHeader } from '../dicom/header'
+import { buildRows, diffRows, rowsToCsv, rowsToJson, rowsToText, type TagDifference, type TagRow } from '../dicom/tagRows'
+import type { Series } from '../dicom/types'
+import { openExportDialog } from '../dialogs/dialogStore'
+import { useSettings } from '../store/settingsStore'
+import { selectCurrentDisplaySet, selectCurrentFile, useViewer } from '../store/viewerStore'
 
-interface TagRow {
-  tag: string
-  name: string
-  vr: string
-  value: string
-}
+const BUTTON = 'rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40'
+const SELECT = 'rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-xs text-slate-200'
 
-const MAX_VALUE_LENGTH = 200
+const readRows = async (file: File) => buildRows(parseHeader(await file.arrayBuffer()))
 
-function formatTag(tag: string) {
-  return `(${tag.slice(1, 5)},${tag.slice(5, 9)})`.toUpperCase()
-}
-
-function readValue(dataSet: dicomParser.DataSet, element: dicomParser.Element, vr: string): string {
-  if (element.items) return `[sequence: ${element.items.length} item(s)]`
-  if (element.length === 0) return ''
-
-  const count = (bytes: number) => Math.max(1, Math.floor(element.length / bytes))
-  const join = (read: (index: number) => number | undefined, bytes: number) =>
-    Array.from({ length: Math.min(count(bytes), 16) }, (_, i) => read(i)).join('\\')
-
-  switch (vr) {
-    case 'US':
-      return join((i) => dataSet.uint16(element.tag, i), 2)
-    case 'SS':
-      return join((i) => dataSet.int16(element.tag, i), 2)
-    case 'UL':
-      return join((i) => dataSet.uint32(element.tag, i), 4)
-    case 'SL':
-      return join((i) => dataSet.int32(element.tag, i), 4)
-    case 'FL':
-      return join((i) => dataSet.float(element.tag, i), 4)
-    case 'FD':
-      return join((i) => dataSet.double(element.tag, i), 8)
-    case 'OB':
-    case 'OW':
-    case 'OF':
-    case 'OD':
-    case 'UN':
-      return `[binary: ${element.length} bytes]`
-    case 'AT':
-      return `[attribute tag]`
-    case 'PN':
-    case 'LO':
-    case 'SH':
-    case 'ST':
-    case 'LT':
-    case 'UT':
-    case 'UC':
-      // Free text may use the object's character set (e.g. UTF-8 or Japanese).
-      return decodedText(dataSet, element.tag) ?? ''
-    default:
-      return dataSet.string(element.tag) ?? ''
-  }
-}
-
-function buildRows(dataSet: dicomParser.DataSet): TagRow[] {
-  return Object.values(dataSet.elements)
-    .sort((a, b) => a.tag.localeCompare(b.tag))
-    .map((element) => {
-      const [dictionaryVr, name] = TAG_DICTIONARY[element.tag] ?? []
-      const isPrivate = parseInt(element.tag.slice(1, 5), 16) % 2 === 1
-      const vr = element.vr ?? dictionaryVr ?? (element.items ? 'SQ' : 'UN')
-      const value = readValue(dataSet, element, vr)
-      return {
-        tag: formatTag(element.tag),
-        name: name ?? (isPrivate ? i18n.t('tags.privateTag') : ''),
-        vr,
-        value: value.length > MAX_VALUE_LENGTH ? `${value.slice(0, MAX_VALUE_LENGTH)}…` : value,
-      }
-    })
+function download(text: string, name: string, type: string) {
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob([text], { type }))
+  link.download = name
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(link.href), 5000)
 }
 
 export function TagPanel() {
@@ -88,17 +29,20 @@ export function TagPanel() {
 
 function TagTable({ file }: { file: File }) {
   const { t } = useTranslation()
+  const series = useViewer((s) => selectCurrentDisplaySet(s)?.series)
+  const pinned = useSettings((s) => s.pinnedTags)
   const [rows, setRows] = useState<TagRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [wholeSeries, setWholeSeries] = useState(false)
+  const [comparing, setComparing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    file
-      .arrayBuffer()
-      .then((buffer) => {
+    readRows(file)
+      .then((built) => {
         if (cancelled) return
-        setRows(buildRows(parseHeader(buffer)))
+        setRows(built)
         setError(null)
       })
       .catch(() => !cancelled && setError(t('tags.readError')))
@@ -109,9 +53,20 @@ function TagTable({ file }: { file: File }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((row) => `${row.tag} ${row.name} ${row.value}`.toLowerCase().includes(q))
-  }, [rows, query])
+    const matching = q ? rows.filter((row) => `${row.tag} ${row.name} ${row.value}`.toLowerCase().includes(q)) : rows
+    // Pinned tags (top level) come first.
+    const top = matching.filter((row) => row.depth === 0 && pinned.includes(row.tag))
+    return [...top, ...matching.filter((row) => !top.includes(row))]
+  }, [rows, query, pinned])
+
+  const exportTags = async (format: 'txt' | 'csv' | 'json') => {
+    const files = wholeSeries && series ? [...new Set(series.images.map((image) => image.file))] : [file]
+    const all = await Promise.all(files.map(async (f) => ({ name: f.name, rows: await readRows(f) })))
+    const base = (files.length > 1 ? series?.description || 'series' : file.name).replace(/[^\w.-]+/g, '_')
+    if (format === 'txt') download(all.map((f) => `# ${f.name}\n${rowsToText(f.rows)}`).join('\n'), `${base}-tags.txt`, 'text/plain')
+    else if (format === 'csv') download(all.map((f, i) => rowsToCsv(f.rows, f.name).split('\r\n').slice(i ? 1 : 0).join('\r\n')).join(''), `${base}-tags.csv`, 'text/csv')
+    else download(JSON.stringify(all.map((f) => ({ file: f.name, tags: rowsToJson(f.rows) })), null, 2), `${base}-tags.json`, 'application/json')
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -124,35 +79,129 @@ function TagTable({ file }: { file: File }) {
           placeholder={t('tags.search')}
           className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
         />
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-xs text-slate-500">{t('tags.export')}</span>
+          {(['txt', 'csv', 'json'] as const).map((format) => (
+            <button key={format} className={BUTTON} onClick={() => void exportTags(format)}>
+              {format.toUpperCase()}
+            </button>
+          ))}
+          <label className="flex items-center gap-1 text-xs text-slate-400">
+            <input type="checkbox" checked={wholeSeries} onChange={(e) => setWholeSeries(e.target.checked)} />
+            {t('tags.wholeSeries')}
+          </label>
+          <button className={`${BUTTON} ml-auto`} aria-pressed={comparing} onClick={() => setComparing(!comparing)}>
+            {t('tags.compare')}
+          </button>
+          <button className={BUTTON} onClick={() => openExportDialog('tagEdit')}>
+            {t('tags.edit')}
+          </button>
+        </div>
+        {comparing && <ComparePicker rows={rows} />}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
-        {error ? (
-          <p className="text-sm text-red-400">{error}</p>
-        ) : (
-          <table className="w-full table-fixed text-left font-mono text-[11px]">
-            <thead className="sticky top-0 bg-slate-900 text-slate-500">
-              <tr>
-                <th className="w-24 py-1 font-normal">{t('tags.colTag')}</th>
-                <th className="w-36 py-1 font-normal">{t('tags.colName')}</th>
-                <th className="w-8 py-1 font-normal">{t('tags.colVr')}</th>
-                <th className="py-1 font-normal">{t('tags.colValue')}</th>
-              </tr>
-            </thead>
+      {!comparing && (
+        <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+          {error ? (
+            <p className="text-sm text-red-400">{error}</p>
+          ) : (
+            <table className="w-full table-fixed text-left font-mono text-[11px]">
+              <thead className="sticky top-0 bg-slate-900 text-slate-500">
+                <tr>
+                  <th className="w-5 py-1 font-normal" />
+                  <th className="w-24 py-1 font-normal">{t('tags.colTag')}</th>
+                  <th className="w-36 py-1 font-normal">{t('tags.colName')}</th>
+                  <th className="w-8 py-1 font-normal">{t('tags.colVr')}</th>
+                  <th className="py-1 font-normal">{t('tags.colValue')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((row) => {
+                  const isPinned = row.depth === 0 && pinned.includes(row.tag)
+                  return (
+                    <tr key={row.path} data-testid="tag-row" className={`border-t border-slate-800/60 align-top ${isPinned ? 'bg-sky-500/5' : ''}`}>
+                      <td className="py-1">
+                        {row.depth === 0 && row.tag && (
+                          <button
+                            aria-label={t(isPinned ? 'tags.unpin' : 'tags.pin', { tag: row.name || row.tag })}
+                            aria-pressed={isPinned}
+                            onClick={() => useSettings.getState().togglePinnedTag(row.tag)}
+                            className={isPinned ? 'text-amber-300' : 'text-slate-600 hover:text-slate-300'}
+                          >
+                            ★
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-1 text-slate-500" style={{ paddingLeft: row.depth * 10 }}>
+                        {row.tag || '›'}
+                      </td>
+                      <td className="truncate py-1 text-slate-300" title={row.name}>
+                        {row.name}
+                      </td>
+                      <td className="py-1 text-slate-500">{row.vr}</td>
+                      <td className="break-all py-1 text-slate-100">{row.value}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Picks another open image and lists the tags that differ from this one. */
+function ComparePicker({ rows }: { rows: TagRow[] }) {
+  const { t } = useTranslation()
+  const studies = useViewer((s) => s.studies)
+  const allSeries = useMemo(() => studies.flatMap((study) => study.series.filter((s) => s.images.some((i) => i.file)).map((series) => ({ study, series }))), [studies])
+  const [seriesId, setSeriesId] = useState(allSeries[0]?.series.id ?? '')
+  const [number, setNumber] = useState(1)
+  const [differences, setDifferences] = useState<TagDifference[] | null>(null)
+  const series: Series | undefined = allSeries.find((s) => s.series.id === seriesId)?.series
+
+  useEffect(() => {
+    const file = series?.images[Math.min(number, series.images.length) - 1]?.file
+    if (!file) return
+    let cancelled = false
+    void readRows(file).then((other) => !cancelled && setDifferences(diffRows(rows, other)))
+    return () => {
+      cancelled = true
+    }
+  }, [series, number, rows])
+
+  return (
+    <div className="flex min-h-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1 text-xs text-slate-400">
+        {t('tags.compareWith')}
+        <select aria-label={t('tags.compareSeries')} value={seriesId} onChange={(e) => setSeriesId(e.target.value)} className={`${SELECT} max-w-48`}>
+          {allSeries.map(({ study, series: s }) => (
+            <option key={s.id} value={s.id}>
+              {study.studyDate} #{s.seriesNumber} {s.description || s.modality}
+            </option>
+          ))}
+        </select>
+        <input aria-label={t('tags.compareImage')} type="number" min={1} max={series?.images.length ?? 1} value={number} onChange={(e) => setNumber(Math.max(1, Number(e.target.value) || 1))} className={`${SELECT} w-16`} />
+      </div>
+      {differences && (
+        <div className="max-h-[60dvh] overflow-auto">
+          <p className="mb-1 text-xs text-slate-500">{t('tags.differences', { count: differences.length })}</p>
+          <table className="w-full table-fixed text-left font-mono text-[11px]" data-testid="tag-diff">
             <tbody>
-              {filtered.map((row) => (
-                <tr key={row.tag} className="border-t border-slate-800/60 align-top">
-                  <td className="py-1 text-slate-500">{row.tag}</td>
-                  <td className="truncate py-1 text-slate-300" title={row.name}>
-                    {row.name}
+              {differences.map((d) => (
+                <tr key={d.path} className="border-t border-slate-800/60 align-top">
+                  <td className="w-36 truncate py-1 text-slate-300" title={`${d.path} ${d.name}`}>
+                    {d.name || d.tag}
                   </td>
-                  <td className="py-1 text-slate-500">{row.vr}</td>
-                  <td className="break-all py-1 text-slate-100">{row.value}</td>
+                  <td className="break-all py-1 pr-2 text-rose-300">{d.a ?? '—'}</td>
+                  <td className="break-all py-1 text-emerald-300">{d.b ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

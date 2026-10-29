@@ -1,3 +1,4 @@
+import { imageToCanvas } from './imageCoords'
 import { metaData } from '@cornerstonejs/core'
 import { wadouri } from '@cornerstonejs/dicom-image-loader'
 
@@ -62,3 +63,30 @@ export function overlayBitmaps(imageId: string): HTMLCanvasElement[] {
 }
 
 export const clearOverlayBitmaps = () => bitmaps.clear()
+
+/**
+ * Draws an image's overlay planes on a 2D context the size of the viewport
+ * canvas (ratio = device pixels per CSS pixel), following zoom, pan, rotation and flips.
+ */
+export function drawOverlayPlanes(context: CanvasRenderingContext2D, viewportId: string, imageId: string, ratio: number) {
+  context.save()
+  for (const bitmap of overlayBitmaps(imageId)) {
+    const { overlayX = 0, overlayY = 0 } = bitmap as HTMLCanvasElement & { overlayX?: number; overlayY?: number }
+    // Image pixel (x, y) is the centre of a pixel; place the bitmap by its corners.
+    const p0 = imageToCanvas(viewportId, [overlayX - 0.5, overlayY - 0.5])
+    const px = imageToCanvas(viewportId, [overlayX + bitmap.width - 0.5, overlayY - 0.5])
+    const py = imageToCanvas(viewportId, [overlayX - 0.5, overlayY + bitmap.height - 0.5])
+    if (!p0 || !px || !py) continue
+    context.setTransform(
+      (ratio * (px[0] - p0[0])) / bitmap.width,
+      (ratio * (px[1] - p0[1])) / bitmap.width,
+      (ratio * (py[0] - p0[0])) / bitmap.height,
+      (ratio * (py[1] - p0[1])) / bitmap.height,
+      ratio * p0[0],
+      ratio * p0[1],
+    )
+    context.imageSmoothingEnabled = false
+    context.drawImage(bitmap, 0, 0)
+  }
+  context.restore()
+}

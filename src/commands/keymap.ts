@@ -49,6 +49,9 @@ export const DEFAULT_KEYMAP: Record<string, string[]> = {
   'measure.deleteSelected': ['delete'],
   'measure.undo': ['ctrl+z'],
   'measure.redo': ['ctrl+shift+z', 'ctrl+y'],
+  'export.copyImage': ['ctrl+c'],
+  'export.images': ['ctrl+s'],
+  'export.print': ['ctrl+p'],
 }
 
 /**

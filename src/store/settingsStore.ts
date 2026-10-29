@@ -60,10 +60,16 @@ export interface Settings {
   measureUnit: LengthUnit
   /** The user's hanging protocols, tried before the built-in ones. */
   hangingRules: HangingRule[]
+  /** Last choices of each export dialog (by dialog), so they open as left. */
+  exportPrefs: Record<string, Record<string, string | number | boolean>>
+  /** Tags shown at the top of the tag panel, as "(gggg,eeee)". */
+  pinnedTags: string[]
+  /** Saved anonymization settings. */
+  anonymizeTemplates: { name: string; options: Record<string, string | boolean> }[]
 }
 
 export const SETTINGS_KEY = 'dicomlens-settings'
-export const SETTINGS_VERSION = 3
+export const SETTINGS_VERSION = 4
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
@@ -94,12 +100,19 @@ export const DEFAULT_SETTINGS: Settings = {
   screenDpi: 96,
   measureUnit: 'mm',
   hangingRules: [],
+  exportPrefs: {},
+  pinnedTags: [],
+  anonymizeTemplates: [],
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 function pickBooleans(source: unknown) {
   return isObject(source) ? Object.fromEntries(Object.entries(source).filter(([, v]) => typeof v === 'boolean')) : {}
+}
+
+function pickPrimitives(source: unknown): Record<string, string | number | boolean> {
+  return isObject(source) ? Object.fromEntries(Object.entries(source).filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v))) as Record<string, string | number | boolean> : {}
 }
 
 function validRule(value: unknown): value is HangingRule {
@@ -143,6 +156,13 @@ export function migrateSettings(stored: unknown): Settings {
     screenDpi: dpi >= 50 && dpi <= 600 ? dpi : DEFAULT_SETTINGS.screenDpi,
     measureUnit: value.measureUnit === 'cm' ? 'cm' : 'mm',
     hangingRules: Array.isArray(value.hangingRules) ? value.hangingRules.filter(validRule) : [],
+    exportPrefs: isObject(value.exportPrefs)
+      ? Object.fromEntries(Object.entries(value.exportPrefs).filter(([, v]) => isObject(v)).map(([k, v]) => [k, pickPrimitives(v)]))
+      : {},
+    pinnedTags: Array.isArray(value.pinnedTags) ? value.pinnedTags.filter((t): t is string => typeof t === 'string') : [],
+    anonymizeTemplates: Array.isArray(value.anonymizeTemplates)
+      ? value.anonymizeTemplates.filter((t): t is Settings['anonymizeTemplates'][number] => isObject(t) && typeof t.name === 'string' && isObject(t.options)).map((t) => ({ name: t.name, options: pickPrimitives(t.options) as Record<string, string | boolean> }))
+      : [],
   }
 }
 
@@ -159,6 +179,10 @@ interface SettingsState extends Settings {
   setMeasureUnit: (unit: LengthUnit) => void
   addHangingRule: (rule: HangingRule) => void
   removeHangingRule: (id: string) => void
+  setExportPrefs: (dialog: string, prefs: Record<string, string | number | boolean>) => void
+  togglePinnedTag: (tag: string) => void
+  saveAnonymizeTemplate: (name: string, options: Record<string, string | boolean>) => void
+  removeAnonymizeTemplate: (name: string) => void
 }
 
 let presetCounter = 0
@@ -192,12 +216,18 @@ export const useSettings = create<SettingsState>()(
       setMeasureUnit: (measureUnit) => set({ measureUnit }),
       addHangingRule: (rule) => set((state) => ({ hangingRules: [rule, ...state.hangingRules] })),
       removeHangingRule: (id) => set((state) => ({ hangingRules: state.hangingRules.filter((r) => r.id !== id) })),
+      setExportPrefs: (dialog, prefs) => set((state) => ({ exportPrefs: { ...state.exportPrefs, [dialog]: prefs } })),
+      togglePinnedTag: (tag) =>
+        set((state) => ({ pinnedTags: state.pinnedTags.includes(tag) ? state.pinnedTags.filter((t) => t !== tag) : [...state.pinnedTags, tag] })),
+      saveAnonymizeTemplate: (name, options) =>
+        set((state) => ({ anonymizeTemplates: [...state.anonymizeTemplates.filter((t) => t.name !== name), { name, options }] })),
+      removeAnonymizeTemplate: (name) => set((state) => ({ anonymizeTemplates: state.anonymizeTemplates.filter((t) => t.name !== name) })),
     }),
     {
       name: SETTINGS_KEY,
       version: SETTINGS_VERSION,
       storage: createJSONStorage(safeStorage),
-      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules }): Settings => ({
+      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules, exportPrefs, pinnedTags, anonymizeTemplates }): Settings => ({
         language,
         links,
         display,
@@ -205,6 +235,9 @@ export const useSettings = create<SettingsState>()(
         screenDpi,
         measureUnit,
         hangingRules,
+        exportPrefs,
+        pinnedTags,
+        anonymizeTemplates,
       }),
       migrate: (stored) => migrateSettings(stored),
       merge: (stored, current) => ({ ...current, ...migrateSettings(stored) }),

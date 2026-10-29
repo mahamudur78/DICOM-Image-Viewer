@@ -16,6 +16,7 @@
 //               the first pixel holds the slice's label (100, 200, …) so tests can tell them apart
 //   measure/    DX with Imager Pixel Spacing and magnification (ERMF), ultrasound with a
 //               calibrated region; both hold a 40 × 40 pixel square of value 1000 on 100
+//   compressed/ an RLE Lossless image (8-bit, 64 × 64): decompression and anonymizing compressed pixels
 //   prior/      one patient, two CT studies a year apart (current/ and prior/), 20 axial
 //               slices each, in different frames of reference with positions 1000 mm apart;
 //               the first pixel of each slice is its instance number × 10
@@ -37,7 +38,7 @@ import {
 } from './dicom-writer.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '13'
+export const SAMPLES_VERSION = '14'
 
 const root = process.argv[2]
 if (!root) {
@@ -929,6 +930,57 @@ if (hasFfmpeg) {
       element(0x0028, 0x1050, 'DS', 550),
       element(0x0028, 0x1051, 'DS', 1200),
       element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
+    ],
+  })
+}
+
+// --- RLE Lossless (PS3.5 Annex G): one 8-bit segment ----------------------------
+{
+  outDir = dir('compressed')
+  const size = 64
+  const pixels = Uint8Array.from({ length: size * size }, (_, i) => {
+    const [x, y] = [i % size, Math.floor(i / size)]
+    return (x - 32) ** 2 + (y - 32) ** 2 < 400 ? 200 : x * 2
+  })
+  // PackBits: runs of a repeated byte, otherwise literal runs (at most 128 bytes each).
+  const packed = []
+  for (let i = 0; i < pixels.length; ) {
+    let run = 1
+    while (i + run < pixels.length && run < 128 && pixels[i + run] === pixels[i]) run++
+    if (run > 1) {
+      packed.push(257 - run, pixels[i])
+      i += run
+      continue
+    }
+    let literal = 1
+    while (i + literal < pixels.length && literal < 128 && pixels[i + literal] !== pixels[i + literal - 1]) literal++
+    packed.push(literal - 1, ...pixels.subarray(i, i + literal))
+    i += literal
+  }
+  const header = Buffer.alloc(64)
+  header.writeUInt32LE(1, 0)
+  header.writeUInt32LE(64, 4)
+  writeDicomFile(join(outDir, 'rle_ct.dcm'), {
+    sopClassUID: '1.2.840.10008.5.1.4.1.1.7',
+    sopInstanceUID: `${ROOT}.19.1`,
+    transferSyntax: '1.2.840.10008.1.2.5',
+    elements: [
+      ...patient('Sample^Compressed', 'SAMPLE-RLE'),
+      ...study(`${ROOT}.19`, 'Compressed'),
+      element(0x0008, 0x0060, 'CS', 'OT'),
+      element(0x0008, 0x103e, 'LO', 'RLE lossless'),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.19.100`),
+      element(0x0020, 0x0011, 'IS', 1),
+      element(0x0020, 0x0013, 'IS', 1),
+      element(0x0028, 0x0002, 'US', 1),
+      element(0x0028, 0x0004, 'CS', 'MONOCHROME2'),
+      element(0x0028, 0x0010, 'US', size),
+      element(0x0028, 0x0011, 'US', size),
+      element(0x0028, 0x0100, 'US', 8),
+      element(0x0028, 0x0101, 'US', 8),
+      element(0x0028, 0x0102, 'US', 7),
+      element(0x0028, 0x0103, 'US', 0),
+      encapsulatedPixelData([Buffer.concat([header, Buffer.from(packed)])]),
     ],
   })
 }

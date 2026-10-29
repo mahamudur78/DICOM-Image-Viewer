@@ -19,6 +19,7 @@ export type DialogRequest =
   | { type: 'form'; title: string; fields: FormField[]; submit: string; resolve: (values: Record<string, string> | null) => void }
   | { type: 'presets'; modality: string; current: { width: number; center: number } | null }
   | { type: 'hanging' }
+  | { type: 'export'; kind: 'images' | 'movie' | 'print' | 'anonymize' | 'convert' | 'tagEdit' }
 
 /** One modal dialog at a time; requests made while one is open wait in line. */
 export const useDialogs = create<{ queue: DialogRequest[] }>()(() => ({ queue: [] }))
@@ -45,3 +46,6 @@ export const managePresets = (modality: string, current: { width: number; center
 
 /** The user's hanging protocols (and the built-in ones): list, delete. */
 export const manageHangingRules = () => push({ type: 'hanging' })
+
+/** One of the export, print, anonymize, convert or tag-edit dialogs (loaded on first use). */
+export const openExportDialog = (kind: Extract<DialogRequest, { type: 'export' }>['kind']) => push({ type: 'export', kind })

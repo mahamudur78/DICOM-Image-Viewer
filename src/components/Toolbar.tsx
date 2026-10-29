@@ -257,6 +257,12 @@ const COMPARE_MENU: MenuSection[] = [
   { title: 'menus.hanging', commands: ['hanging.apply', 'hanging.save', 'hanging.manage'] },
 ]
 
+const EXPORT_MENU: MenuSection[] = [
+  { title: 'menus.exportImages', commands: ['export.images', 'export.movie', 'export.copyImage', 'export.captureRegion', 'export.print'] },
+  { title: 'menus.exportDicom', commands: ['export.originals.series', 'export.originals.study', 'export.originals.all', 'export.decompress', 'export.tagEdit'] },
+  { title: 'menus.privacy', commands: ['export.anonymize', 'export.convert'] },
+]
+
 /** Tools chosen from the Measure menu (the toolbar has buttons for the others). */
 const MENU_TOOLS = new Set(MEASURE_MENU.flatMap((section) => section.commands).filter((id) => id.startsWith('tool.') && !getCommand(id).icon))
 
@@ -425,6 +431,7 @@ export function Toolbar() {
       : [],
     [
       ...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'),
+      <MenuButton key="export-menu" label="menus.exportMenu" icon={t('menus.exportShort')} sections={EXPORT_MENU} />,
       ...groupButtons(['panel'], ctx),
       ...['display.fullscreen'].map(getCommand).filter((c) => isAvailable(c, ctx)).map((c) => <CommandButton key={c.id} command={c} ctx={ctx} />),
     ],

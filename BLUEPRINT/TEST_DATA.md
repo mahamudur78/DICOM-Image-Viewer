@@ -39,6 +39,7 @@
 | `sort/` | ৫টা slice; instance, position, সময় আর নামের ক্রম আলাদা | সাজানোর চারটা বিকল্প |
 | `edge/blank.dcm` | পুরো একরঙা ছবি | শূন্য-প্রস্থ W/L এড়ানো |
 | `measure/dx_ermf.dcm` | DX, শুধু Imager Pixel Spacing 0.2 আর ERMF 1.25; 100×100, মাঝে 40×40 বর্গ (মান 1000, বাকি 100) | ERMF-সংশোধিত মাপ (0.16 mm/pixel), ROI পরিসংখ্যান, redaction export |
+| `compressed/rle_ct.dcm` | RLE Lossless, ৮-বিট, ৬৪×৬৪ (মাঝে মান ২০০-এর বৃত্ত) | uncompressed কপি, compressed ছবিতে redaction-সহ anonymize |
 | `prior/current/`, `prior/prior/` | একই রোগী, ২০২৬ ও ২০২৫-এর দুটো CT স্টাডি; ২০টা axial slice; আলাদা frame of reference, অবস্থান ১০০০ mm সরানো | Add files, prior তুলনা, lock sync, "CT with prior" hanging |
 | `measure/us_region.dcm` | US, একই ছবি, পুরোটা জুড়ে একটা region (0.05 cm/pixel) | আল্ট্রাসাউন্ড region calibration |
 

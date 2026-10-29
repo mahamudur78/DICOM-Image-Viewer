@@ -7,6 +7,7 @@ import { Toolbar } from './components/Toolbar'
 import { ViewportGrid } from './components/ViewportGrid'
 import { ErrorBoundary } from './notifications/ErrorBoundary'
 import { PanelHost } from './panels/PanelHost'
+import { RegionCapture } from './export/RegionCapture'
 import { useCornerstoneBridge } from './store/viewerActions'
 import { setDistractionFree, useViewer } from './store/viewerStore'
 import { ImageFilterDefs } from './components/ImageFilterDefs'
@@ -42,6 +43,7 @@ export function Workspace() {
           </ErrorBoundary>
         </div>
         {!distractionFree && <PanelHost />}
+        <RegionCapture />
         {distractionFree && (
           <button
             onClick={() => setDistractionFree(false)}
