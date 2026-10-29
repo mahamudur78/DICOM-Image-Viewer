@@ -19,7 +19,7 @@ import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useVolume } from './useVolume'
 import { VolumeProgress } from './VolumeProgress'
 import { CprOverlay } from './CprOverlay'
-import { FusionLayer } from './FusionLayer'
+import { FusionLayer, ObjectLayers } from './FusionLayer'
 import { FUSED_ROW, PET_ROW, usePlaneSync } from '../functional/petctViews'
 import { PetCtViewport, RotatingMip } from './PetCtRows'
 import { VrViewport } from './VrViewport'
@@ -213,6 +213,7 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
     >
       <div ref={elementRef} className="absolute inset-0" />
       <FusionLayer viewportId={viewportId} fusionKey={fusion ? undefined : null} />
+      <ObjectLayers viewportId={viewportId} seriesId={displaySet.series.id} />
       <CprOverlay viewportId={viewportId} />
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[40%]">

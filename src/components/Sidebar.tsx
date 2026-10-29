@@ -134,6 +134,11 @@ function StudyItem({ study, prior, showPatient, collapsed, onToggle, activeSerie
                     <span className="truncate text-slate-300">
                       {series.seriesNumber}/{series.images.length} {series.description}
                     </span>
+                    {series.ai && (
+                      <span className="shrink-0 rounded bg-fuchsia-600 px-1 text-[10px] font-bold text-white" title={t('objects.aiHint')}>
+                        AI
+                      </span>
+                    )}
                     {shown && !active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />}
                   </div>
                   <SeriesThumbnail series={series} />

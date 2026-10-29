@@ -107,24 +107,58 @@ export interface OverlayStyle {
   threshold: number
 }
 
+/** Overlay values on a width × height grid of canvas points (NaN outside the overlay). */
+export function sampleOverlay(width: number, height: number, worldAt: (x: number, y: number) => Vec3, valueAt: (world: Vec3) => number, registration: Registration): Float32Array {
+  const out = new Float32Array(width * height)
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) out[y * width + x] = valueAt(toOverlaySpace(registration, worldAt(x, y)))
+  return out
+}
+
+/** Colours values through the style's colormap; below the threshold stays transparent. */
+export function colorize(values: Float32Array, style: OverlayStyle): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(values.length * 4)
+  const span = Math.max(1e-9, style.upper - style.lower)
+  const alpha = Math.round(Math.max(0, Math.min(1, style.opacity)) * 255)
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (Number.isNaN(v) || v < style.threshold) continue
+    const [r, g, b] = colormapRgb(style.colormap, (v - style.lower) / span)
+    out.set([r, g, b, alpha], i * 4)
+  }
+  return out
+}
+
+/**
+ * Colours a label bitmask: each pixel takes the first visible segment it
+ * holds, filled at `opacity` and drawn solid where the label changes (outline).
+ */
+export function colorizeLabels(values: Float32Array, width: number, height: number, segments: { bit: number; color: number[]; visible: boolean }[], opacity: number): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(values.length * 4)
+  const shown = segments.filter((s) => s.visible)
+  const visibleMask = (v: number) => {
+    let mask = 0
+    for (const s of shown) if (Math.floor(v / 2 ** s.bit) % 2 === 1) mask += 2 ** s.bit
+    return mask
+  }
+  const fill = Math.round(Math.max(0, Math.min(1, opacity)) * 255)
+  const masks = new Float64Array(values.length)
+  for (let i = 0; i < values.length; i++) masks[i] = Number.isNaN(values[i]) ? 0 : visibleMask(values[i])
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x
+      const mask = masks[i]
+      if (!mask) continue
+      const segment = shown.find((s) => Math.floor(mask / 2 ** s.bit) % 2 === 1)!
+      const edge = x === 0 || y === 0 || x === width - 1 || y === height - 1 || masks[i - 1] !== mask || masks[i + 1] !== mask || masks[i - width] !== mask || masks[i + width] !== mask
+      out.set([segment.color[0], segment.color[1], segment.color[2], edge ? 255 : fill], i * 4)
+    }
+  return out
+}
+
 /**
  * RGBA pixels of an overlay for a width × height grid: `worldAt(x, y)` gives
  * the world point of each grid pixel, `valueAt(world)` the overlay value there (NaN outside).
  */
 export function renderOverlay(width: number, height: number, worldAt: (x: number, y: number) => Vec3, valueAt: (world: Vec3) => number, style: OverlayStyle, registration: Registration): Uint8ClampedArray<ArrayBuffer> {
-  const out = new Uint8ClampedArray(width * height * 4)
-  const span = Math.max(1e-9, style.upper - style.lower)
-  const alpha = Math.round(Math.max(0, Math.min(1, style.opacity)) * 255)
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) {
-      const v = valueAt(toOverlaySpace(registration, worldAt(x, y)))
-      if (Number.isNaN(v) || v < style.threshold) continue
-      const [r, g, b] = colormapRgb(style.colormap, (v - style.lower) / span)
-      const i = (y * width + x) * 4
-      out[i] = r
-      out[i + 1] = g
-      out[i + 2] = b
-      out[i + 3] = alpha
-    }
-  return out
+  return colorize(sampleOverlay(width, height, worldAt, valueAt, registration), style)
 }

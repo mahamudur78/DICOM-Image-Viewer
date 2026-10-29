@@ -3,8 +3,8 @@ import type { DisplaySet, Series, Study } from './types'
 
 /**
  * Orders series for the initial grid: localizers (scouts) first so reference
- * lines show up on them, then images, then videos, reports and PDFs, each
- * in study/series order.
+ * lines show up on them, then images, then videos, reports, PDFs and other
+ * viewers, each in study/series order.
  */
 export function hangingOrder(studies: Study[]): DisplaySet[] {
   const displaySets = studies.flatMap((study) => study.series.map((series) => ({ study, series })))
@@ -12,9 +12,12 @@ export function hangingOrder(studies: Study[]): DisplaySet[] {
   return [
     ...images.filter(({ series }) => series.isLocalizer),
     ...images.filter(({ series }) => !series.isLocalizer),
-    ...displaySets.filter(({ series }) => series.kind !== 'image'),
+    ...displaySets.filter(({ series }) => series.kind !== 'image' && !APPLIED_KINDS.has(series.kind)),
   ]
 }
+
+/** Objects that act on images (opened from the sidebar onto them), not shown in cells of their own. */
+const APPLIED_KINDS = new Set(['ko', 'pr', 'seg', 'rtstruct', 'rtdose', 'pmap'])
 
 // --- rules -------------------------------------------------------------------------
 
@@ -26,6 +29,9 @@ export interface CellRule {
   /** Words the series description must contain; "|" separates alternatives ("dwi|diffusion"). */
   description?: string
   plane?: PlaneName
+  /** Mammography: R or L, and the view (CC, MLO). */
+  laterality?: string
+  view?: string
 }
 
 /** When a study opens with a matching series, lay the grid out like this. */
@@ -69,6 +75,20 @@ export const BUILT_IN_RULES: HangingRule[] = [
     cells: [{ modality: 'MR' }, { prior: true, modality: 'MR' }],
     builtIn: true,
   },
+  {
+    // Right breast on the left, left on the right; mirrored so the chest walls meet in the middle.
+    id: 'builtin-mammography',
+    name: 'Mammography',
+    modality: 'MG',
+    layout: { rows: 2, cols: 2 },
+    cells: [
+      { modality: 'MG', laterality: 'R', view: 'CC' },
+      { modality: 'MG', laterality: 'L', view: 'CC' },
+      { modality: 'MG', laterality: 'R', view: 'MLO' },
+      { modality: 'MG', laterality: 'L', view: 'MLO' },
+    ],
+    builtIn: true,
+  },
 ]
 
 const lower = (text: string | undefined) => (text ?? '').toLocaleLowerCase()
@@ -87,6 +107,10 @@ function cellScore(series: Series, rule: CellRule) {
   if (rule.modality && series.modality !== rule.modality) return -1
   if (rule.description && !matchesWords(series.description, rule.description)) return -1
   if (rule.plane && series.plane && series.plane !== rule.plane) return -1
+  if (rule.laterality && series.laterality?.toUpperCase() !== rule.laterality) return -1
+  if (rule.view && series.viewPosition?.toUpperCase() !== rule.view) return -1
+  // A view is a single image; tomosynthesis stacks of the same view come after it.
+  if (rule.view) return series.images.length === 1 ? 2 : 1
   return (rule.plane && series.plane === rule.plane ? 2 : 0) + (series.isLocalizer ? 0 : 1) + series.images.length / 1e6
 }
 

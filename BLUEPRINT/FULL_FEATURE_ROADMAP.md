@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৭ সম্পন্ন, ফেজ ৮ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৮ সম্পন্ন, ফেজ ৯ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -278,25 +278,25 @@
 
 ## ফেজ ৮: বিশেষ DICOM object
 
-- [ ] **Measurement SR (TID 1500) পড়া:** মাপ ছবির উপর দেখানো (`@cornerstonejs/adapters`)
-- [ ] **Measurement SR লেখা:** আমাদের মাপ DICOM SR হিসেবে সেভ/ডাউনলোড
-- [ ] **Key Object Selection (KO):** গুরুত্বপূর্ণ ছবি চিহ্নিত করা, সেভ, পড়া, শুধু key image দেখার ফিল্টার
-- [ ] **Presentation State (GSPS) পড়া:** W/L, zoom, ঘোরানো, annotation প্রয়োগ
-- [ ] **GSPS লেখা:** এখনকার দেখার অবস্থা সেভ
-- [ ] **DICOM SEG পড়া:** 2D, MPR, 3D-তে overlay; segment তালিকা, রং, opacity, লুকানো
-- [ ] **RTSTRUCT:** contour দেখানো (2D/MPR/3D), structure তালিকা
-- [ ] **RTDOSE:** isodose রেখা ও color wash
-- [ ] **DVH** (dose-volume histogram) চার্ট
-- [ ] RTPLAN-এর মৌলিক তথ্য দেখানো
-- [ ] **Parametric map** (যেমন ADC map, AI-র ফলাফল) colormap সহ
-- [ ] **AI-র তৈরি object** (SC, SEG, SR, GSPS) চেনা ও আলাদা চিহ্ন
-- [ ] **ECG waveform:** 12-lead গ্রিড, mm/mV ও গতি স্কেল, মাপার caliper
-- [ ] অন্য waveform (hemodynamic ইত্যাদি) মৌলিকভাবে
-- [ ] **DICOM অডিও** বাজানো
-- [ ] **Whole-slide microscopy (SM):** tiled pyramid দেখা (zoom, pan), annotation — আলাদা viewer অংশ
-- [ ] Ophthalmology (OP/OPT) আর ডেন্টাল (IO/PX) ছবি ঠিকমতো দেখানো
-- [ ] Mammography: MLO/CC হ্যাঙ্গিং, দুই পাশ মুখোমুখি (mirror) সাজানো; **Breast tomosynthesis (DBT)**
-- [ ] Definition of Done পূরণ
+- [x] **Measurement SR (TID 1500) পড়া:** মাপ ছবির উপর দেখানো (`@cornerstonejs/adapters`)
+- [x] **Measurement SR লেখা:** আমাদের মাপ DICOM SR হিসেবে সেভ/ডাউনলোড
+- [x] **Key Object Selection (KO):** গুরুত্বপূর্ণ ছবি চিহ্নিত করা, সেভ, পড়া, শুধু key image দেখার ফিল্টার
+- [x] **Presentation State (GSPS) পড়া:** W/L, zoom, ঘোরানো, annotation প্রয়োগ
+- [x] **GSPS লেখা:** এখনকার দেখার অবস্থা সেভ
+- [x] **DICOM SEG পড়া:** 2D, MPR, 3D-তে overlay; segment তালিকা, রং, opacity, লুকানো
+- [x] **RTSTRUCT:** contour দেখানো (2D/MPR/3D), structure তালিকা
+- [x] **RTDOSE:** isodose রেখা ও color wash
+- [x] **DVH** (dose-volume histogram) চার্ট
+- [x] RTPLAN-এর মৌলিক তথ্য দেখানো
+- [x] **Parametric map** (যেমন ADC map, AI-র ফলাফল) colormap সহ
+- [x] **AI-র তৈরি object** (SC, SEG, SR, GSPS) চেনা ও আলাদা চিহ্ন
+- [x] **ECG waveform:** 12-lead গ্রিড, mm/mV ও গতি স্কেল, মাপার caliper
+- [x] অন্য waveform (hemodynamic ইত্যাদি) মৌলিকভাবে
+- [x] **DICOM অডিও** বাজানো
+- [x] **Whole-slide microscopy (SM):** tiled pyramid দেখা (zoom, pan), annotation — আলাদা viewer অংশ
+- [x] Ophthalmology (OP/OPT) আর ডেন্টাল (IO/PX) ছবি ঠিকমতো দেখানো
+- [x] Mammography: MLO/CC হ্যাঙ্গিং, দুই পাশ মুখোমুখি (mirror) সাজানো; **Breast tomosynthesis (DBT)**
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_8_SPECIAL_OBJECTS_PLAN.md](PHASE_8_SPECIAL_OBJECTS_PLAN.md))
 
 ## ফেজ ৯: Segmentation সম্পাদনা
 

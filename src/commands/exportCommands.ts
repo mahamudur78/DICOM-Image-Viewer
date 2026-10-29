@@ -6,7 +6,7 @@ import { notify } from '../notifications/toastStore'
 import { startRegionCapture } from '../export/regionCaptureStore'
 import type { Command, CommandContext } from './commands'
 
-const hasImage = (ctx: CommandContext) => ctx.viewportId !== null && ctx.kind !== 'pdf' && ctx.kind !== 'video' && ctx.kind !== 'sr'
+const hasImage = (ctx: CommandContext) => ctx.viewportId !== null && ctx.kind !== 'pdf' && ctx.kind !== 'video' && ctx.kind !== 'sr' && ctx.kind !== 'document'
 const hasDicom = (ctx: CommandContext) => ctx.state.studies.length > 0
 
 /** Copies the current image (as shown, with annotations) to the clipboard as PNG. */

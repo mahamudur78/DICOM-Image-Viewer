@@ -24,7 +24,9 @@ import { filterElementId, useViewportDisplay } from '../store/viewportDisplaySto
 import { cellOfViewport, useViewer } from '../store/viewerStore'
 import { CineControls } from './CineControls'
 import { ComparisonLayer } from './ComparisonLayer'
-import { FusionLayer } from './FusionLayer'
+import { FusionLayer, ObjectLayers } from './FusionLayer'
+import { PresentationLayer } from './PresentationLayer'
+import { isKeyImage, originalId, useKeyImages } from '../objects/keyImages'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useCinePlayback } from './useCinePlayback'
@@ -84,6 +86,9 @@ export function Viewport({
   const [loadedSeries, setLoadedSeries] = useState<DisplaySet['series'] | null>(null)
   const loading = loadedSeries !== series
   const count = series.images.length
+  const keys = useKeyImages((s) => s.keys)
+  const shownImage = series.images[overlay.index]
+  const isKey = !!shownImage && isKeyImage(shownImage, keys)
   useCinePlayback(viewportId, elementRef, series)
 
   useEffect(() => {
@@ -200,6 +205,13 @@ export function Viewport({
         className="absolute inset-0"
       />
       {!loading && <FusionLayer viewportId={viewportId} />}
+      {!loading && <ObjectLayers viewportId={viewportId} seriesId={originalId(series)} />}
+      {!loading && <PresentationLayer viewportId={viewportId} series={series} element={element} />}
+      {isKey && (
+        <div data-testid="key-image" className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 text-lg text-amber-300 [text-shadow:0_1px_2px_#000]" title={t('objects.keyImage')}>
+          ★
+        </div>
+      )}
       {display.dicomOverlays && <DicomOverlayLayer viewportId={viewportId} element={element} />}
       {!loading && <ComparisonLayer viewportId={viewportId} />}
       {unlinked && (

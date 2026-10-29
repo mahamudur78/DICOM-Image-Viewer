@@ -45,6 +45,7 @@ export const DEFAULT_KEYMAP: Record<string, string[]> = {
   'video.nextFrame': ['arrowright', 'arrowdown'],
   'panel.tags': ['t'],
   'panel.measurements': ['x'],
+  'objects.keyImage': ['*'],
   // Backspace stays with Cornerstone: it removes the last point of a contour being drawn.
   'measure.deleteSelected': ['delete'],
   'measure.undo': ['ctrl+z'],

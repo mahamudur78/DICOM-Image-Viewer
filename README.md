@@ -36,6 +36,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
 | `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
+| `src/objects/` | Non-image objects: SEG, RTSTRUCT, RTDOSE (isodose, DVH), RTPLAN, parametric maps, measurement SR, key objects, presentation states, waveforms, whole-slide levels — reading, writing and applying them |
 | `src/functional/` | Fusion (overlay rendering, registration), PET/CT layout, SUV sphere statistics, dynamic phases, time-intensity curves, DSA |
 | `src/volume/` | Volume maths (sampling, oblique slices, curved reformat, ray picking, transfer functions, meshes), reformatted DICOM |
 | `src/export/` | Image, movie, print/PDF export (own BMP/TIFF/GIF/AVI/PDF encoders), anonymization, tag editing, conversion |
@@ -102,6 +103,13 @@ separate chunk that starts downloading right after the first render.
   PET ROIs; time-intensity curves of ROIs on dynamic series (types Ia–III, CSV); DSA of an angiography
   run (mask, pixel shift found per frame or by hand, split and magic mask, landmark) as a new
   series; 4D MPR / 3D of dynamic series with a phase slider and cine
+- Special DICOM objects: segmentations, RT structures and parametric maps over their images (2D, MPR and
+  3D; segment list with colours, visibility and volumes), RT dose as colour wash and isodose lines with a
+  DVH, RT plans, measurement reports (TID 1500) shown on the images and saved from the measurements, key
+  images (`*`, a key-only filter, KO read and save), presentation states (window, rotation, flip, zoom,
+  shutters, annotations; read and save), 12-lead ECG with speed, gain and calipers, other waveforms, voice
+  audio, whole-slide microscopy (tiled pyramid, zoom, pan, length), ophthalmic and dental images, and
+  mirrored mammography hanging; AI-made objects carry a badge
 - Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
   seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
   movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or
@@ -113,6 +121,6 @@ separate chunk that starts downloading right after the first render.
 - Measurements panel: jump to the image, label, colour, hide, delete (image / series / all), undo
   and redo, copy onto another slice, copy values, CSV export, save and load as JSON
 
-Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Ctrl+C` copy image · `Ctrl+S` export images · `Ctrl+P` print · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
+Keyboard: `*` key image · `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Ctrl+C` copy image · `Ctrl+S` export images · `Ctrl+P` print · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

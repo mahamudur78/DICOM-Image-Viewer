@@ -65,9 +65,12 @@ describe('seriesKindOf', () => {
     expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.88.11', '1.2.840.10008.1.2.1', false)).toBe('sr')
     expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.2', '1.2.840.10008.1.2.1', true)).toBe('image')
   })
-  it('rejects objects without pixels and key object selections', () => {
-    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.481.3', '1.2.840.10008.1.2', false)).toBeNull()
-    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.88.59', '1.2.840.10008.1.2.1', false)).toBeNull()
+  it('recognises non-image objects and rejects unknown ones', () => {
+    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.481.3', '1.2.840.10008.1.2', false)).toBe('rtstruct')
+    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.88.59', '1.2.840.10008.1.2.1', false)).toBe('ko')
+    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.66.4', '1.2.840.10008.1.2.1', true)).toBe('seg')
+    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.9.4.1', '1.2.840.10008.1.2.1', false)).toBe('waveform')
+    expect(seriesKindOf('1.2.840.10008.5.1.4.1.1.66', '1.2.840.10008.1.2.1', false)).toBeNull()
   })
 })
 

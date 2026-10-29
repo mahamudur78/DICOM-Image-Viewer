@@ -51,6 +51,7 @@ import { exportCommands } from './exportCommands'
 import { reformatCommands } from './reformatCommands'
 import { measureCommands } from './measureCommands'
 import { functionalCommands } from './functionalCommands'
+import { objectCommands } from './objectCommands'
 import {
   selectMode,
   selectTargetViewportId,
@@ -98,6 +99,7 @@ export type CommandGroup =
   | 'export'
   | 'reformat'
   | 'functional'
+  | 'objects'
 
 export interface Command {
   id: string
@@ -794,6 +796,7 @@ const ALL_COMMANDS: Command[] = [
   ...exportCommands,
   ...reformatCommands,
   ...functionalCommands,
+  ...objectCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

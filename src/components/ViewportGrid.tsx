@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { viewportIdAt } from '../cornerstone/constants'
-import { SERIES_DRAG_TYPE } from '../dicom/types'
+import { SERIES_DRAG_TYPE, type SeriesKind } from '../dicom/types'
 import { setActiveCell, setCellIndex, showSeriesInCell, toggleMaximize, useViewer } from '../store/viewerStore'
 import { Viewport } from './Viewport'
 
@@ -10,7 +10,14 @@ const VIEWERS = {
   video: lazy(() => import('./VideoViewer')),
   pdf: lazy(() => import('./PdfViewer')),
   sr: lazy(() => import('./SrViewer')),
+  rtplan: lazy(() => import('./RtPlanViewer')),
+  waveform: lazy(() => import('./WaveformViewer')),
+  sm: lazy(() => import('./SlideViewer')),
+  // Objects applied to images (segmentations, structures, dose, maps, key images, presentation states).
+  object: lazy(() => import('./ObjectViewer')),
 }
+
+const viewerFor = (kind: Exclude<SeriesKind, 'image'>) => (kind in VIEWERS ? (kind as keyof typeof VIEWERS) : 'object')
 
 export function ViewportGrid() {
   const { t } = useTranslation()
@@ -92,8 +99,8 @@ export function ViewportGrid() {
   )
 }
 
-/** The viewer for a video, PDF or report series. */
-function DocumentViewer({ kind, ...props }: { kind: 'video' | 'pdf' | 'sr' } & React.ComponentProps<typeof VIEWERS.sr>) {
-  const Viewer = VIEWERS[kind] as typeof VIEWERS.sr
+/** The viewer for a video, PDF, report or other non-image object. */
+function DocumentViewer({ kind, ...props }: { kind: Exclude<SeriesKind, 'image'> } & React.ComponentProps<typeof VIEWERS.sr>) {
+  const Viewer = VIEWERS[viewerFor(kind)] as typeof VIEWERS.sr
   return <Viewer {...props} />
 }

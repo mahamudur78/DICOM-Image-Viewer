@@ -1,6 +1,6 @@
 // Pure helpers for DICOM header values. They take plain strings (not
 // dicom-parser datasets) so they can be unit tested without any files.
-import type { ImageEntry, SortMode } from './types'
+import type { ImageEntry, SeriesKind, SortMode } from './types'
 
 /**
  * Formats a DICOM PN value ("Doe^John") for display. Japanese, Chinese and
@@ -70,19 +70,32 @@ export const SOP_CLASS = {
   secondaryCapture: '1.2.840.10008.5.1.4.1.1.7',
 }
 
-/** Names of common objects we cannot display yet, for the "skipped files" list. */
+/** Names of common objects we cannot display, for the "skipped files" list. */
 const OBJECT_NAMES: Record<string, string> = {
-  '1.2.840.10008.5.1.4.1.1.481.3': 'RT Structure Set',
-  '1.2.840.10008.5.1.4.1.1.481.5': 'RT Plan',
-  '1.2.840.10008.5.1.4.1.1.481.8': 'RT Ion Plan',
-  '1.2.840.10008.5.1.4.1.1.11.1': 'Grayscale Presentation State',
-  '1.2.840.10008.5.1.4.1.1.88.59': 'Key Object Selection',
-  '1.2.840.10008.5.1.4.1.1.9.1.1': '12-lead ECG',
-  '1.2.840.10008.5.1.4.1.1.9.1.2': 'General ECG',
-  '1.2.840.10008.5.1.4.1.1.9.2.1': 'Hemodynamic Waveform',
-  '1.2.840.10008.5.1.4.1.1.9.4.1': 'Basic Voice Audio',
+  '1.2.840.10008.5.1.4.1.1.11.4': 'Blending Presentation State',
   '1.2.840.10008.5.1.4.1.1.66': 'Raw Data',
+  '1.2.840.10008.5.1.4.1.1.66.1': 'Spatial Registration',
+  '1.2.840.10008.5.1.4.1.1.481.4': 'RT Beams Treatment Record',
 }
+
+/** Objects that are not images, by SOP Class UID (prefixes end with "."). */
+const OBJECT_KINDS: [string, SeriesKind][] = [
+  ['1.2.840.10008.5.1.4.1.1.88.59', 'ko'],
+  ['1.2.840.10008.5.1.4.1.1.11.1', 'pr'],
+  ['1.2.840.10008.5.1.4.1.1.11.2', 'pr'],
+  ['1.2.840.10008.5.1.4.1.1.11.3', 'pr'],
+  ['1.2.840.10008.5.1.4.1.1.66.4', 'seg'],
+  ['1.2.840.10008.5.1.4.1.1.481.2', 'rtdose'],
+  ['1.2.840.10008.5.1.4.1.1.481.3', 'rtstruct'],
+  ['1.2.840.10008.5.1.4.1.1.481.5', 'rtplan'],
+  ['1.2.840.10008.5.1.4.1.1.481.8', 'rtplan'],
+  ['1.2.840.10008.5.1.4.1.1.30', 'pmap'],
+  ['1.2.840.10008.5.1.4.1.1.77.1.6', 'sm'],
+  ['1.2.840.10008.5.1.4.1.1.9.', 'waveform'],
+]
+
+/** Basic Voice Audio and General Audio waveforms are played, not drawn. */
+export const isAudioSopClass = (sopClassUID: string | undefined) => !!sopClassUID?.startsWith('1.2.840.10008.5.1.4.1.1.9.4.')
 
 export const objectName = (sopClassUID: string | undefined) =>
   (sopClassUID && OBJECT_NAMES[sopClassUID]) || sopClassUID || 'unknown'
@@ -91,12 +104,12 @@ export const objectName = (sopClassUID: string | undefined) =>
  * How an object is displayed, or null when it cannot be (yet). Key Object
  * Selection is an SR class but holds no readable report, so it is excluded.
  */
-export function seriesKindOf(sopClassUID: string | undefined, transferSyntax: string | undefined, hasRows: boolean) {
+export function seriesKindOf(sopClassUID: string | undefined, transferSyntax: string | undefined, hasRows: boolean): SeriesKind | null {
   if (transferSyntax && VIDEO_TRANSFER_SYNTAXES[transferSyntax]) return 'video'
   if (sopClassUID === SOP_CLASS.encapsulatedPdf) return 'pdf'
-  if (sopClassUID?.startsWith('1.2.840.10008.5.1.4.1.1.88.') && sopClassUID !== '1.2.840.10008.5.1.4.1.1.88.59') {
-    return 'sr'
-  }
+  const object = sopClassUID && OBJECT_KINDS.find(([uid]) => (uid.endsWith('.') ? sopClassUID.startsWith(uid) : sopClassUID === uid))
+  if (object) return object[1]
+  if (sopClassUID?.startsWith('1.2.840.10008.5.1.4.1.1.88.')) return 'sr'
   return hasRows ? 'image' : null
 }
 

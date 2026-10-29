@@ -15,6 +15,8 @@ export interface ImageEntry {
   frame: number
   /** SOP Instance UID of the file, used to find images that reports and key objects refer to. */
   sopInstanceUID: string
+  /** SOP Class UID, for references written in reports, key objects and presentation states. */
+  sopClassUID?: string
   /** Temporal Position Identifier (0020,0100) of dynamic series. */
   temporalPosition?: number
   /** Trigger Time (0018,1060), ms. */
@@ -22,7 +24,10 @@ export interface ImageEntry {
 }
 
 /** How a series is displayed. */
-export type SeriesKind = 'image' | 'video' | 'pdf' | 'sr'
+export type SeriesKind = 'image' | 'video' | 'pdf' | 'sr' | ObjectKind
+
+/** Non-image objects shown by their own viewers or applied to images (phase 8). */
+export type ObjectKind = 'ko' | 'pr' | 'seg' | 'rtstruct' | 'rtdose' | 'rtplan' | 'pmap' | 'waveform' | 'sm'
 
 export type SortMode = 'instance' | 'position' | 'time' | 'fileName'
 
@@ -38,6 +43,11 @@ export interface Series {
   hasOrientation: boolean
   /** Scout / localizer / topogram, shown first by the hanging protocol. */
   isLocalizer: boolean
+  /** Made by an algorithm (AI / CAD), shown with a badge. */
+  ai?: boolean
+  /** Image Laterality (R/L) and View Position (CC, MLO, …), for mammography hanging. */
+  laterality?: string
+  viewPosition?: string
   /** Anatomical plane of the (first) image, for matching series across studies. */
   plane?: PlaneName
   /** Body Part Examined (0018,0015), upper case, or empty. */

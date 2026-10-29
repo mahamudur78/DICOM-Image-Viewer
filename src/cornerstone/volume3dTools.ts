@@ -590,6 +590,33 @@ export function registrationMatrix(translate: number[], rotate: number[], center
 const OVERLAY_UID_SUFFIX = '-fusion'
 
 /** Shows a second volume in colour in a 3D view (PET over CT), moved by the registration. */
+/** A Cornerstone volume holding a computed grid (DICOM objects shown as overlays), once per id. */
+export function createGridVolume(volumeId: string, grid: VolumeGrid & { scalars: Float32Array }) {
+  if (cache.getVolume(volumeId)) return
+  volumeLoader.createLocalVolume(volumeId, {
+    scalarData: grid.scalars,
+    metadata: {
+      BitsAllocated: 32,
+      BitsStored: 32,
+      SamplesPerPixel: 1,
+      HighBit: 31,
+      PhotometricInterpretation: 'MONOCHROME2',
+      PixelRepresentation: 1,
+      Modality: 'OT',
+      ImageOrientationPatient: grid.direction.slice(0, 6),
+      PixelSpacing: [grid.spacing[1], grid.spacing[0]],
+      Columns: grid.dimensions[0],
+      Rows: grid.dimensions[1],
+      voiLut: [],
+      VOILUTFunction: 'LINEAR',
+    },
+    dimensions: grid.dimensions,
+    spacing: grid.spacing,
+    origin: grid.origin,
+    direction: grid.direction,
+  } as never)
+}
+
 export async function addOverlayVolume(viewportId: string, volumeId: string, tf: TransferFunction, matrix: number[]) {
   const viewport = vrViewport(viewportId)
   if (!viewport) return
@@ -604,6 +631,13 @@ export async function addOverlayVolume(viewportId: string, volumeId: string, tf:
   property.getRGBTransferFunction(0).removeAllPoints()
   for (const p of tf.colors) property.getRGBTransferFunction(0).addRGBPoint(p.value, p.r, p.g, p.b)
   actor.setUserMatrix(matrix)
+  viewport.render()
+}
+
+export function removeOverlayVolume(viewportId: string, volumeId: string) {
+  const viewport = vrViewport(viewportId)
+  if (!viewport) return
+  viewport.removeActors([`${volumeId}${OVERLAY_UID_SUFFIX}`])
   viewport.render()
 }
 

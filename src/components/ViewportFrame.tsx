@@ -4,7 +4,7 @@ import { useContextMenuTrigger } from './contextMenuTrigger'
 
 interface ViewportFrameProps {
   viewportId: string
-  kind: Extract<ViewportKind, 'video' | 'pdf' | 'sr'>
+  kind: Extract<ViewportKind, 'video' | 'pdf' | 'sr' | 'document'>
   active: boolean
   onActivate: () => void
   onToggleMaximize?: () => void

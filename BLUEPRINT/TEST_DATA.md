@@ -46,6 +46,10 @@
 | `dynamic/` | DCE MR, ৩ slice × ৬ phase (Temporal Position, Trigger Time ০–৩০০ s); x = ১২/২৪/৩৬-এ তিনটা ক্ষত, curve I/II/III | Phase-এ ভাগ, time-intensity curve |
 | `dsa/angio.dcm` | XA, ১০ frame, ৮-বিট ৬৪²; frame ১ mask, frame ৩ থেকে y = ৩২-এ ধমনী ভরে, frame ৭ থেকে ২ px সরানো | DSA, স্বয়ংক্রিয় shift, split mask |
 | `4d/` | CT, ৪ phase × ১২ slice, x বরাবর সরতে থাকা গোলক | 4D MPR, phase slider |
+| `objects/` | একটা CT (২০ slice, ৬৪², ২ mm, slice-এর দূরত্ব ২.৫ mm; টিউমার আর একটা অঙ্গ) আর তার উপর: SEG (২ segment, একটা AI), RTSTRUCT (PTV, Organ), RTDOSE (৬২ Gy), RTPLAN (২ beam, ৬০ Gy / ৩০), ADC parametric map (float), measurement SR (TID 1500: length, ellipse, point), KO (slice ১০–১১), GSPS (window ১২০/৬০, ৯০°, flip, zoom, লেখা, polyline, বৃত্তাকার shutter) | Overlay object, DVH, SR/KO/GSPS পড়া ও লেখা |
+| `waveform/` | ১২-lead ECG (৫০০ Hz, ১০ s, ৭৫ bpm), দুই channel-এর চাপ, ভয়েস অডিও (৪৪০ Hz, ১ s) | Waveform viewer, caliper, অডিও |
+| `slide/` | Whole-slide microscopy: দুই level (৫১২×৩৮৪ আর ২৫৬×১৯২), ১২৮-pixel RGB tile | SM viewer |
+| `special/` | OP ছবি আর OPT, intra-oral আর panoramic, চার view-এর mammogram (প্রতি view এক সিরিজ) আর DBT | বিশেষ ছবি, mammography হ্যাঙ্গিং |
 
 **বড় স্টাডি:** `scripts/generate-large-study.mjs <dir> [count]` ২০০০টা 64×64 slice বানায় (`e2e/.data/large`)। E2E এটা খুলতে কত সময় লাগে মাপে (2026-10-28: ৪.৮ সেকেন্ড)।
 

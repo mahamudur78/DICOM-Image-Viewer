@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs'
 export const EXPLICIT_VR_LE = '1.2.840.10008.1.2.1'
 export const UID_ROOT = '1.2.826.0.1.3680043.10.1395' // arbitrary demo UID root
 
-const LONG_VRS = new Set(['OB', 'OW', 'SQ', 'UN', 'UT'])
+const LONG_VRS = new Set(['OB', 'OW', 'OF', 'OD', 'SQ', 'UN', 'UT', 'UC', 'UR'])
 
 function encodeValue(vr, value) {
   if (value instanceof Uint8Array) return Buffer.from(value)

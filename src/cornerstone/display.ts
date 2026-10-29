@@ -198,7 +198,26 @@ export function applyModalityDefaults(viewportId: string, modality: string) {
     if (headerWindows(viewportId).every((w) => w.width <= 0)) applyVoiLut(viewportId)
     if (hasInversePresentation(viewportId)) viewport.setProperties({ invert: true })
   }
+  if (modality === 'MG') {
+    const dataSet = currentDataSet(viewportId)
+    const flip = dataSet && mammoFlip(dataSet.string('x00200062') ?? dataSet.string('x00200060'), dataSet.string('x00200020'))
+    if (flip !== undefined) viewport.setViewPresentation({ flipHorizontal: flip })
+  }
   viewport.render()
+}
+
+/**
+ * Mammograms are hung back to back: the right breast with its chest wall on
+ * the right of the image, the left with it on the left. Patient Orientation's
+ * row direction tells where the chest wall is: rows running towards A (the
+ * nipple) start at the chest wall, towards P end at it.
+ */
+export function mammoFlip(laterality: string | undefined, patientOrientation: string | undefined): boolean | undefined {
+  const side = laterality?.trim().toUpperCase()
+  const rows = patientOrientation?.split('\\')[0]?.trim().toUpperCase() ?? ''
+  if ((side !== 'R' && side !== 'L') || (!rows.includes('A') && !rows.includes('P'))) return undefined
+  const chestWallLeft = rows.includes('A')
+  return side === 'R' ? chestWallLeft : !chestWallLeft
 }
 
 // --- VOI LUT and Presentation LUT -------------------------------------------------------

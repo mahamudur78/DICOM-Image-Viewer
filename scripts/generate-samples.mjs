@@ -27,6 +27,7 @@
 //   prior/      one patient, two CT studies a year apart (current/ and prior/), 20 axial
 //               slices each, in different frames of reference with positions 1000 mm apart;
 //               the first pixel of each slice is its instance number × 10
+//   objects/, waveform/, slide/, special/  phase 8 objects, written by sample-objects.mjs
 //
 // Usage: node scripts/generate-samples.mjs <output-dir>
 import { execFileSync } from 'node:child_process'
@@ -43,9 +44,10 @@ import {
   uint16Pixels,
   writeDicomFile,
 } from './dicom-writer.mjs'
+import { writeObjectSamples } from './sample-objects.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '15'
+export const SAMPLES_VERSION = '17'
 
 const root = process.argv[2]
 if (!root) {
@@ -1258,6 +1260,7 @@ if (hasFfmpeg) {
   }
 }
 
+writeObjectSamples(root)
 writeFileSync(join(root, '.version'), SAMPLES_VERSION)
 console.log(`Wrote sample files to ${root}`)
 

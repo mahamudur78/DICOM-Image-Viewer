@@ -5,7 +5,7 @@ import { create } from 'zustand'
  * e.g. invert only applies to 2D kinds. Video, PDF and report viewports are
  * plain React components, not Cornerstone viewports.
  */
-export type ViewportKind = 'stack' | 'mpr' | 'volume3d' | 'video' | 'pdf' | 'sr'
+export type ViewportKind = 'stack' | 'mpr' | 'volume3d' | 'video' | 'pdf' | 'sr' | 'document'
 
 /** Mounted viewports by id. It is a store so the toolbar re-renders once a viewport mounts. */
 export const useViewportRegistry = create<{ kinds: Record<string, ViewportKind> }>()(() => ({ kinds: {} }))

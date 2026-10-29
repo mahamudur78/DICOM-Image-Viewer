@@ -2,11 +2,12 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MPR_AXIAL_ID, MPR_VR_VIEWPORT_ID, VR_VIEWPORT_ID, viewportIdAt } from '../cornerstone/constants'
 import { getViewport } from '../cornerstone/viewer'
-import { addOverlayVolume, hasOverlayVolume, registrationMatrix, removeOverlayVolumes } from '../cornerstone/volume3dTools'
+import { addOverlayVolume, hasOverlayVolume, registrationMatrix, removeOverlayVolume } from '../cornerstone/volume3dTools'
 import { groupByPatient } from '../dicom/studyTree'
 import type { DisplaySet } from '../dicom/types'
 import { FUSION_COLORMAPS, colormapRgb, type FusionColormap } from '../functional/fusion'
-import { MPR_KEY, removeFusion, startFusion, updateFusion, useFusion } from '../functional/fusionStore'
+import { MPR_KEY, objectKeysOf, removeFusion, startFusion, updateFusion, useFusion, type FusionSetting } from '../functional/fusionStore'
+import { ObjectOverlays } from './ObjectControls'
 import { useViewportRegistry } from '../cornerstone/viewportRegistry'
 import { openPetCt, petCtPair } from '../functional/petct'
 import { selectCurrentDisplaySet, useViewer } from '../store/viewerStore'
@@ -59,6 +60,7 @@ export function FusionPanel() {
   return (
     <div className="h-full space-y-3 overflow-y-auto p-3 text-sm">
       <p className="text-xs text-slate-400">{mode === 'grid' ? t('fusion.targetCell', { series: base.series.description || base.series.modality }) : t('fusion.targetMpr')}</p>
+      <ObjectOverlays base={base} />
       {pair && (
         <button className={BUTTON} onClick={() => openPetCt(pair.ct, pair.pet)}>
           {t('fusion.petCtLayout')}
@@ -177,40 +179,61 @@ function FusionControls({ fusionKey }: { fusionKey: string }) {
   )
 }
 
-/** In 3D: the MPR fusion's overlay as a coloured second volume. */
-function ThreeDFusion() {
-  const { t } = useTranslation()
-  const kinds = useViewportRegistry((s) => s.kinds)
-  const viewportId = kinds[VR_VIEWPORT_ID] === 'volume3d' ? VR_VIEWPORT_ID : kinds[MPR_VR_VIEWPORT_ID] === 'volume3d' ? MPR_VR_VIEWPORT_ID : null
-  const setting = useFusion((s) => s.settings[MPR_KEY] ?? Object.values(s.settings)[0])
-  const [shown, setShown] = useState(() => (viewportId ? hasOverlayVolume(viewportId) : false))
-  if (!viewportId) return <p className="p-3 text-sm text-slate-500">{t('fusion.noSeries')}</p>
-  if (!setting?.volumeId) return <p className="p-3 text-xs text-slate-400">{t('fusion.threeDHint')}</p>
-  const { style, registration } = setting
+/** A transfer function showing an overlay in 3D: its colormap, segment colours, or dose. */
+function overlayTransferFunction(setting: FusionSetting) {
+  const { style } = setting
+  if (setting.mode === 'labels') {
+    const segments = (setting.segments ?? []).filter((s) => s.visible)
+    return {
+      opacity: [{ value: 0, opacity: 0 }, ...segments.flatMap((s) => [{ value: 2 ** s.bit - 0.5, opacity: 0 }, { value: 2 ** s.bit, opacity: style.opacity }, { value: 2 ** s.bit + 0.5, opacity: 0 }])],
+      colors: segments.map((s) => ({ value: 2 ** s.bit, r: s.color[0] / 255, g: s.color[1] / 255, b: s.color[2] / 255 })),
+    }
+  }
   const colors = Array.from({ length: 6 }, (_, i) => {
     const [r, g, b] = colormapRgb(style.colormap, i / 5)
     return { value: style.lower + ((style.upper - style.lower) * i) / 5, r: r / 255, g: g / 255, b: b / 255 }
   })
-  const tf = {
+  return {
     opacity: [
       { value: style.threshold, opacity: 0 },
       { value: style.upper, opacity: style.opacity },
     ],
     colors,
   }
+}
+
+/** In 3D: the MPR fusion's overlay and the objects of the series, as coloured second volumes. */
+function ThreeDFusion() {
+  const { t } = useTranslation()
+  const kinds = useViewportRegistry((s) => s.kinds)
+  const viewportId = kinds[VR_VIEWPORT_ID] === 'volume3d' ? VR_VIEWPORT_ID : kinds[MPR_VR_VIEWPORT_ID] === 'volume3d' ? MPR_VR_VIEWPORT_ID : null
+  const seriesId = useViewer((s) => s.volumeView?.displaySet.series.id)
+  const keys = useFusion((s) => [...(s.settings[MPR_KEY] ? [MPR_KEY] : []), ...(seriesId ? objectKeysOf(s.settings, seriesId) : [])].join('\n'))
+  const [shown, setShown] = useState<string[]>([])
+  if (!viewportId) return <p className="p-3 text-sm text-slate-500">{t('fusion.noSeries')}</p>
+  if (!keys) return <p className="p-3 text-xs text-slate-400">{t('fusion.threeDHint')}</p>
   return (
     <div className="space-y-2 p-3">
-      <p className="text-xs text-slate-300">{setting.overlay.series.description}</p>
-      <button
-        className={BUTTON}
-        onClick={async () => {
-          if (shown) removeOverlayVolumes(viewportId)
-          else await addOverlayVolume(viewportId, setting.volumeId!, tf, registrationMatrix(registration.translate, registration.rotate, registration.center))
-          setShown(!shown)
-        }}
-      >
-        {shown ? t('fusion.hide3d') : t('fusion.show3d')}
-      </button>
+      {keys.split('\n').map((key) => {
+        const setting = useFusion.getState().settings[key]
+        if (!setting?.volumeId) return null
+        const on = shown.includes(key) && hasOverlayVolume(viewportId)
+        return (
+          <div key={key} className="flex items-center gap-2">
+            <span className="truncate text-xs text-slate-300">{setting.overlay.series.description}</span>
+            <button
+              className={BUTTON}
+              onClick={async () => {
+                if (on) removeOverlayVolume(viewportId, setting.volumeId!)
+                else await addOverlayVolume(viewportId, setting.volumeId!, overlayTransferFunction(setting), registrationMatrix(setting.registration.translate, setting.registration.rotate, setting.registration.center))
+                setShown(on ? shown.filter((k) => k !== key) : [...shown, key])
+              }}
+            >
+              {on ? t('fusion.hide3d') : t('fusion.show3d')}
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -268,6 +268,11 @@ const FUNCTIONAL_MENU: MenuSection[] = [
   { title: 'menus.dynamic', commands: ['panel.tic', 'functional.mpr4d', 'panel.dsa'] },
 ]
 
+const OBJECTS_MENU: MenuSection[] = [
+  { title: 'menus.keyImages', commands: ['objects.keyImage', 'objects.keyOnly', 'objects.saveKeyObjects'] },
+  { title: 'menus.saveObjects', commands: ['objects.saveSr', 'objects.savePresentation'] },
+]
+
 const EXPORT_MENU: MenuSection[] = [
   { title: 'menus.exportImages', commands: ['export.images', 'export.movie', 'export.copyImage', 'export.captureRegion', 'export.print'] },
   { title: 'menus.exportDicom', commands: ['export.originals.series', 'export.originals.study', 'export.originals.all', 'export.decompress', 'export.tagEdit'] },
@@ -438,6 +443,7 @@ export function Toolbar() {
       show3dControls && <PresetSelect key="preset" modality={modality} />,
       mode !== 'grid' && <PhaseControls key="phases" />,
       <MenuButton key="functional-menu" label="menus.functional" icon={t('menus.functionalShort')} sections={FUNCTIONAL_MENU} />,
+      mode === 'grid' && <MenuButton key="objects-menu" label="menus.objects" icon={t('menus.objectsShort')} sections={OBJECTS_MENU} />,
     ],
     mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],
     mode === 'grid'

@@ -2,6 +2,9 @@ import dicomParser from 'dicom-parser'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseStructuredReport, type SrNode, type StructuredReport } from '../dicom/sr'
+import { notify } from '../notifications/toastStore'
+import { readSrMeasurements, type SrMeasurement } from '../objects/measurementSr'
+import { showSrMeasurements } from '../objects/reports'
 import type { DisplaySet } from '../dicom/types'
 import { showReferencedImage } from '../store/viewerActions'
 import { ViewportFrame } from './ViewportFrame'
@@ -20,13 +23,19 @@ export default function SrViewer({ viewportId, cell, displaySet, active, onActiv
   const { t } = useTranslation()
   const file = displaySet.series.images[0].file
   const [report, setReport] = useState<StructuredReport | null>(null)
+  const [measurements, setMeasurements] = useState<SrMeasurement[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     file
       .arrayBuffer()
-      .then((buffer) => !cancelled && setReport(parseStructuredReport(dicomParser.parseDicom(new Uint8Array(buffer)))))
+      .then((buffer) => {
+        if (cancelled) return
+        const dataSet = dicomParser.parseDicom(new Uint8Array(buffer))
+        setReport(parseStructuredReport(dataSet))
+        setMeasurements(readSrMeasurements(dataSet))
+      })
       .catch((reason: unknown) => !cancelled && setError(String(reason)))
     return () => {
       cancelled = true
@@ -50,6 +59,17 @@ export default function SrViewer({ viewportId, cell, displaySet, active, onActiv
                 {report.verification && <Badge ok={report.verification === 'VERIFIED'}>{t(`sr.verification.${report.verification}`, { defaultValue: report.verification })}</Badge>}
               </p>
             </header>
+            {measurements.length > 0 && (
+              <button
+                className="mb-2 rounded bg-sky-600 px-3 py-1 text-xs text-white hover:bg-sky-500"
+                onClick={() => {
+                  const placed = showSrMeasurements(measurements, cell)
+                  notify(placed ? t('sr.measurementsPlaced', { count: placed }) : t('sr.measurementsNotPlaced'), placed ? 'success' : 'info')
+                }}
+              >
+                {t('sr.showMeasurements', { count: measurements.length })}
+              </button>
+            )}
             <Children nodes={report.root.children} cell={cell} />
           </>
         )}

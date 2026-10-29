@@ -1,8 +1,10 @@
 import { Enums, getRenderingEngine, type Types } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
 import { RENDERING_ENGINE_ID } from '../cornerstone/constants'
-import { renderOverlay } from '../functional/fusion'
-import { fusionKeyOf, overlayGrid, useFusion } from '../functional/fusionStore'
+import { colorize, colorizeLabels, sampleOverlay } from '../functional/fusion'
+import { fusionKeyOf, objectKeysOf, overlayGrid, useFusion, type FusionSetting } from '../functional/fusionStore'
+import { ISODOSE_LEVELS, isolines } from '../objects/dose'
+import { labelAt } from '../objects/labels'
 import { sample } from '../volume/grid'
 
 /** Overlay pixels are computed at this fraction of the canvas, then drawn smoothly scaled up. */
@@ -38,14 +40,19 @@ export function FusionLayer({ viewportId, fusionKey }: { viewportId: string; fus
       if (!grid || !element.clientWidth) return
       const width = Math.max(1, Math.round(element.clientWidth * RESOLUTION))
       const height = Math.max(1, Math.round(element.clientHeight * RESOLUTION))
-      const pixels = renderOverlay(
+      const labels = setting.mode === 'labels'
+      const values = sampleOverlay(
         width,
         height,
         (x, y) => viewport.canvasToWorld([(x + 0.5) / RESOLUTION, (y + 0.5) / RESOLUTION]) as number[],
-        (world) => sample(grid, world),
-        setting.style,
+        labels ? (world) => labelAt(grid, world) : (world) => sample(grid, world),
         setting.registration,
       )
+      const pixels = labels
+        ? colorizeLabels(values, width, height, setting.segments ?? [], setting.style.opacity)
+        : setting.mode === 'dose' && !setting.dose?.wash
+          ? new Uint8ClampedArray(width * height * 4)
+          : colorize(values, setting.style)
       const small = document.createElement('canvas')
       small.width = width
       small.height = height
@@ -57,6 +64,7 @@ export function FusionLayer({ viewportId, fusionKey }: { viewportId: string; fus
       context.imageSmoothingEnabled = true
       context.clearRect(0, 0, canvas.width, canvas.height)
       context.drawImage(small, 0, 0, canvas.width, canvas.height)
+      if (setting.mode === 'dose' && setting.dose?.isodose) drawIsodose(context, values, width, height, setting, canvas.width / width)
     }
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(draw)
@@ -74,5 +82,30 @@ export function FusionLayer({ viewportId, fusionKey }: { viewportId: string; fus
   }, [viewportId, setting, attempt])
 
   if (!setting?.volumeId) return null
-  return <canvas ref={canvasRef} data-testid="fusion-layer" className="pointer-events-none absolute inset-0 h-full w-full" />
+  return <canvas ref={canvasRef} data-testid={key?.startsWith('obj:') ? 'object-layer' : 'fusion-layer'} className="pointer-events-none absolute inset-0 h-full w-full" />
+}
+
+/** Isodose lines at the usual percentages of the reference dose. */
+function drawIsodose(context: CanvasRenderingContext2D, values: Float32Array, width: number, height: number, setting: FusionSetting, scale: number) {
+  const reference = setting.dose!.reference
+  context.lineWidth = Math.max(1, scale * 0.6)
+  for (const { percent, color } of ISODOSE_LEVELS) {
+    const lines = isolines(values, width, height, (reference * percent) / 100)
+    if (!lines.length) continue
+    context.strokeStyle = color
+    context.beginPath()
+    // Cell coordinates are pixel centres of the sampled grid.
+    for (const [x0, y0, x1, y1] of lines) {
+      context.moveTo((x0 + 0.5) * scale, (y0 + 0.5) * scale)
+      context.lineTo((x1 + 0.5) * scale, (y1 + 0.5) * scale)
+    }
+    context.stroke()
+  }
+}
+
+/** The DICOM objects (segmentations, structures, dose, maps) shown over a series, in any viewport of it. */
+export function ObjectLayers({ viewportId, seriesId }: { viewportId: string; seriesId: string | undefined }) {
+  const keys = useFusion((s) => (seriesId ? objectKeysOf(s.settings, seriesId).join('\n') : ''))
+  if (!keys) return null
+  return keys.split('\n').map((key) => <FusionLayer key={key} viewportId={viewportId} fusionKey={key} />)
 }

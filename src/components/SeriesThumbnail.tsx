@@ -8,11 +8,26 @@ const RESOLUTION = 256
 
 const KIND_ICONS = { video: '🎬', pdf: '📄', sr: '📝' }
 
+/** Objects without pixels of their own. */
+const OBJECT_ICONS: Partial<Record<Series['kind'], string>> = {
+  ko: '★',
+  pr: '🖼',
+  seg: '🧩',
+  rtstruct: '⬠',
+  rtdose: '☢',
+  rtplan: '📋',
+  pmap: '🌈',
+  waveform: '〰',
+  sm: '🔬',
+}
+
 const BOX = 'relative h-16 w-16 shrink-0 overflow-hidden rounded border border-slate-700 bg-black lg:h-28 lg:w-28'
 
 /** Renders the middle image of a series into a small canvas; videos, PDFs and reports get an icon. */
 export function SeriesThumbnail({ series }: { series: Series }) {
   if (series.kind === 'sr') return <IconThumbnail icon={KIND_ICONS.sr} />
+  const icon = OBJECT_ICONS[series.kind]
+  if (icon) return <IconThumbnail icon={icon} />
   if (series.kind !== 'image') return <DocumentThumbnail series={series} />
   return <ImageThumbnail series={series} />
 }

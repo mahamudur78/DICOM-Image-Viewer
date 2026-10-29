@@ -213,8 +213,9 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[], loadedInstances?: S
     }
 
     const seriesUID = text(dataSet, 'x0020000e') ?? `${studyUID}-unknown-series`
-    // Reports, PDFs and videos of one series are listed separately from its images.
-    const draftKey = kind === 'image' ? seriesUID : `${seriesUID}|${kind}|${sopInstanceUID ?? source.path}`
+    // Reports, PDFs, videos and other objects of one series are listed separately from its images;
+    // the levels of a slide stay together.
+    const draftKey = kind === 'image' ? seriesUID : kind === 'sm' ? `${seriesUID}|sm` : `${seriesUID}|${kind}|${sopInstanceUID ?? source.path}`
     let draft = drafts.get(draftKey)
     if (!draft) {
       const description = decodedText(dataSet, 'x0008103e', charset) ?? ''
@@ -228,6 +229,9 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[], loadedInstances?: S
           kind,
           hasOrientation: !!dataSet.string('x00200037') || !!dataSet.elements.x52009229,
           isLocalizer: isLocalizer(dataSet.string('x00080008'), description),
+          ai: isAlgorithmic(dataSet, description),
+          laterality: text(dataSet, 'x00200062') ?? text(dataSet, 'x00200060'),
+          viewPosition: text(dataSet, 'x00185101'),
           bodyPart: (text(dataSet, 'x00180015') ?? '').toUpperCase(),
           frameRate: frameRateOf(number(dataSet, 'x00181063'), number(dataSet, 'x00180040'), number(dataSet, 'x00082144')),
           frameTimeVector: numbers(dataSet, 'x00181065') ?? null,
@@ -257,14 +261,42 @@ function withPlane(series: Series): Series {
   return plane ? { ...series, plane: planeName(plane.rowCosines, plane.columnCosines) } : series
 }
 
-/** Title shown for a report, PDF or video series without a description. */
+const OBJECT_TITLES: Partial<Record<SeriesKind, string>> = {
+  video: 'Video',
+  pr: 'Presentation state',
+  seg: 'Segmentation',
+  rtstruct: 'Structures',
+  rtdose: 'Dose',
+  rtplan: 'Plan',
+  pmap: 'Parametric map',
+  waveform: 'Waveform',
+  sm: 'Slide',
+}
+
+/** Title shown for a report, PDF, video or other object without a description. */
 function documentTitle(dataSet: dicomParser.DataSet, kind: SeriesKind, charset: string | undefined) {
   if (kind === 'pdf') return decodedText(dataSet, 'x00420010', charset) ?? 'PDF'
-  if (kind === 'sr') {
+  if (kind === 'sr' || kind === 'ko') {
     const concept = dataSet.elements.x0040a043?.items?.[0]?.dataSet
-    return (concept && decodedText(concept, 'x00080104', charset)) ?? 'Report'
+    return (concept && decodedText(concept, 'x00080104', charset)) ?? (kind === 'ko' ? 'Key images' : 'Report')
   }
-  return 'Video'
+  if (kind === 'pr') return decodedText(dataSet, 'x00700080', charset) ?? OBJECT_TITLES.pr!
+  if (kind === 'rtstruct') return decodedText(dataSet, 'x30060002', charset) ?? OBJECT_TITLES.rtstruct!
+  if (kind === 'rtplan') return decodedText(dataSet, 'x300a0003', charset) ?? decodedText(dataSet, 'x300a0002', charset) ?? OBJECT_TITLES.rtplan!
+  return OBJECT_TITLES[kind] ?? kind
+}
+
+const AI_WORDS = /\b(AI|CAD)\b|artificial intelligence|algorithm/i
+
+/**
+ * Objects made by an algorithm: Algorithm Identification, SEG segments of
+ * type AUTOMATIC, or "AI"/"CAD" in the description or manufacturer.
+ */
+function isAlgorithmic(dataSet: dicomParser.DataSet, description: string) {
+  if (dataSet.elements.x0066002f) return true
+  const segments = dataSet.elements.x00620002?.items ?? []
+  if (segments.some((item) => item.dataSet?.string('x00620008')?.trim() === 'AUTOMATIC')) return true
+  return AI_WORDS.test(description) || AI_WORDS.test(dataSet.string('x00080070') ?? '')
 }
 
 function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser.DataSet, kind: SeriesKind) {
@@ -278,6 +310,7 @@ function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser
     instanceNumber,
     acquisitionTime,
     sopInstanceUID: text(dataSet, 'x00080018') ?? '',
+    sopClassUID: text(dataSet, 'x00080016') ?? text(dataSet, 'x00020002'),
     temporalPosition: number(dataSet, 'x00200100'),
     triggerTime: number(dataSet, 'x00181060'),
   }

@@ -4,7 +4,8 @@
 import { Enums, cache, eventTarget, metaData } from '@cornerstonejs/core'
 import { create } from 'zustand'
 import { loadVolume } from '../cornerstone/mpr'
-import { volumeGrid } from '../cornerstone/volume3dTools'
+import { createGridVolume, volumeGrid } from '../cornerstone/volume3dTools'
+import type { Segment } from '../objects/labels'
 import type { DisplaySet } from '../dicom/types'
 import { indexToWorld, type VolumeGrid } from '../volume/grid'
 import { IDENTITY, type OverlayStyle, type Registration } from './fusion'
@@ -17,7 +18,15 @@ export interface FusionSetting {
   style: OverlayStyle
   registration: Registration
   visible: boolean
+  /** How values are drawn: a colormap (default), segment labels, or dose (colour wash and isodose lines). */
+  mode?: 'colormap' | 'labels' | 'dose'
+  segments?: (Segment & { visible: boolean })[]
+  dose?: { reference: number; isodose: boolean; wash: boolean }
 }
+
+/** A DICOM object (SEG, RTSTRUCT, RTDOSE, parametric map) drawn over every view of a series. */
+export const objectKey = (baseSeriesId: string, objectSeriesId: string) => `obj:${baseSeriesId}|${objectSeriesId}`
+export const objectKeysOf = (settings: Record<string, FusionSetting>, baseSeriesId: string) => Object.keys(settings).filter((key) => key.startsWith(`obj:${baseSeriesId}|`))
 
 export const MPR_KEY = 'mpr'
 
@@ -43,6 +52,22 @@ export function removeFusion(key: string) {
 // --- the overlay volume as a grid (refreshed while it streams in) ---------------------------------
 
 const grids = new Map<string, { grid: VolumeGrid; at: number }>()
+
+/**
+ * Shows a computed grid (from a DICOM object) over a series. It becomes a
+ * Cornerstone volume too, so the 3D view can show it.
+ */
+export function startObjectOverlay(base: DisplaySet, object: DisplaySet, grid: VolumeGrid & { scalars: Float32Array }, options: Pick<FusionSetting, 'mode' | 'segments' | 'dose'> & { style?: Partial<OverlayStyle> }) {
+  const key = objectKey(base.series.id, object.series.id)
+  const volumeId = `object:${object.series.id}`
+  createGridVolume(volumeId, grid)
+  grids.set(volumeId, { grid, at: Infinity })
+  const style: OverlayStyle = { colormap: 'jet', opacity: options.mode === 'labels' ? 0.4 : 0.5, lower: 0, upper: 1, threshold: 0, ...options.style }
+  useFusion.setState((s) => ({
+    settings: { ...s.settings, [key]: { overlay: object, volumeId, progress: 1, style, registration: { ...IDENTITY }, visible: true, mode: options.mode, segments: options.segments, dose: options.dose } },
+  }))
+  return key
+}
 
 export function overlayGrid(volumeId: string): VolumeGrid | null {
   const volume = cache.getVolume(volumeId)
