@@ -37,6 +37,7 @@ import {
   toolConfiguration,
 } from '../measurements/tools'
 import { RegionWindowTool } from './regionWindowTool'
+import { useSettings, type InputSettings, type MouseTool } from '../store/settingsStore'
 import { SEGMENT_TOOL } from '../segmentation/tool'
 
 const { MouseBindings } = ToolEnums
@@ -137,9 +138,11 @@ function setupToolGroup(id: string) {
   const tools = GROUP_TOOLS[id]
   for (const tool of tools) toolGroup.addTool(PRIMARY_TOOLS[tool], toolConfiguration(PRIMARY_TOOLS[tool]))
 
-  // Fixed bindings that work regardless of the selected toolbar tool.
-  toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
-  toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] })
+  // In 3D the middle and right buttons pan and zoom; 2D views follow the input settings (applyInputBindings).
+  if (id === VR_TOOL_GROUP_ID) {
+    toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
+    toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] })
+  }
   // Shift+click places the 3D cursor whatever tool is selected.
   if (tools.includes('cursor3d')) {
     toolGroup.setToolActive(CURSOR_3D_TOOL, { bindings: [{ mouseButton: MouseBindings.Primary, modifierKey: ToolEnums.KeyboardBindings.Shift }] })
@@ -152,12 +155,52 @@ function setupToolGroup(id: string) {
   return toolGroup
 }
 
-export function createToolGroups() {
+/** Bindings besides the left button and one finger, which follow the user's input settings. */
+const INPUT_BINDINGS = [
+  { mouseButton: MouseBindings.Auxiliary },
+  { mouseButton: MouseBindings.Secondary },
+  { mouseButton: MouseBindings.Wheel },
+  { numTouchPoints: 1 },
+  { numTouchPoints: 2 },
+  { numTouchPoints: 3 },
+]
+
+const INPUT_TOOLS: Record<Exclude<MouseTool, 'none'>, string> = {
+  pan: PanTool.toolName,
+  zoom: ZoomTool.toolName,
+  windowLevel: WindowLevelTool.toolName,
+  scroll: StackScrollTool.toolName,
+}
+
+/**
+ * Middle and right buttons, the wheel and touch on 2D views: two fingers
+ * pinch to zoom and pan, three fingers set the window, and one finger uses
+ * the selected tool or scrolls through the images.
+ */
+export function applyInputBindings(input: InputSettings) {
   for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
-    const toolGroup = setupToolGroup(id)
-    toolGroup.addTool(StackScrollTool.toolName)
-    toolGroup.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
+    const toolGroup = ToolGroupManager.getToolGroup(id)
+    if (!toolGroup) continue
+    for (const toolName of Object.values(INPUT_TOOLS)) {
+      if (!toolGroup.hasTool(toolName)) continue
+      const bindings = toolGroup.getToolOptions(toolName)?.bindings ?? []
+      // Leave tools without input bindings as they are (e.g. the selected left-button tool).
+      if (bindings.some((b) => INPUT_BINDINGS.some((i) => ('mouseButton' in i ? b.mouseButton === i.mouseButton && !b.modifierKey : b.numTouchPoints === i.numTouchPoints))))
+        toolGroup.setToolPassive(toolName, { removeAllBindings: INPUT_BINDINGS })
+    }
+    const bind = (tool: MouseTool, binding: (typeof INPUT_BINDINGS)[number]) => tool !== 'none' && toolGroup.setToolActive(INPUT_TOOLS[tool], { bindings: [binding] })
+    bind(input.middle, INPUT_BINDINGS[0])
+    bind(input.right, INPUT_BINDINGS[1])
+    bind(input.wheel, INPUT_BINDINGS[2])
+    if (input.oneFinger === 'scroll') bind('scroll', INPUT_BINDINGS[3])
+    bind('zoom', INPUT_BINDINGS[4])
+    bind('windowLevel', INPUT_BINDINGS[5])
   }
+}
+
+export function createToolGroups() {
+  for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) setupToolGroup(id).addTool(StackScrollTool.toolName)
+  applyInputBindings(useSettings.getState().input)
   const main = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)!
   main.addTool(ScaleOverlayTool.toolName, { scaleLocation: 'bottom' })
   // PET windows in SUV are only a few units wide.

@@ -5,6 +5,7 @@ import { useSettings } from '../store/settingsStore'
 import { useViewportDisplay } from '../store/viewportDisplayStore'
 import { useViewer } from '../store/viewerStore'
 import { commandContext, commandForKey, isEnabled, type CommandContext } from './commands'
+import { keyFromEvent } from './keymap'
 
 /** Command context that re-renders the caller whenever it may have changed. */
 export function useCommandContext(): CommandContext {
@@ -17,6 +18,7 @@ export function useCommandContext(): CommandContext {
   useViewportRegistry((s) => s.kinds)
   useSettings((s) => s.measureUnit)
   useMeasurementVersion((s) => s.version)
+  useSettings((s) => s.keymap)
   return commandContext()
 }
 
@@ -34,8 +36,7 @@ export function useKeyboardShortcuts(enabled: boolean) {
       if (isTyping(event.target) || event.altKey) return
       // Space on a focused button presses that button.
       if (event.key === ' ' && event.target instanceof HTMLButtonElement) return
-      const ctrl = event.ctrlKey || event.metaKey
-      const key = `${ctrl ? 'ctrl+' : ''}${ctrl && event.shiftKey ? 'shift+' : ''}${event.key.toLowerCase()}`
+      const key = keyFromEvent(event)
       const ctx = commandContext()
       const command = commandForKey(key, ctx)
       if (!command || !isEnabled(command, ctx)) return

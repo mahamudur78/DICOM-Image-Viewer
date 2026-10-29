@@ -48,9 +48,30 @@ export interface UserPreset {
   modality: string
 }
 
+export type Theme = 'system' | 'dark' | 'light' | 'contrast'
+
+/** Tools the middle and right mouse buttons, the wheel and touch can be set to. */
+export type MouseTool = 'pan' | 'zoom' | 'windowLevel' | 'scroll' | 'none'
+
+export interface InputSettings {
+  middle: MouseTool
+  right: MouseTool
+  wheel: 'scroll' | 'zoom'
+  /** One finger: the selected tool (like the left button), or scrolling through images. */
+  oneFinger: 'tool' | 'scroll'
+}
+
 /** User preferences that survive a reload. Session data (studies, layout) lives in the viewer store. */
 export interface Settings {
   language: string
+  theme: Theme
+  input: InputSettings
+  /** The user's shortcuts by command id; commands not listed keep their default keys. */
+  keymap: Record<string, string[]>
+  /** Largest size of the local archive (MB). */
+  archiveLimitMb: number
+  /** The first-visit guide was shown (or closed). */
+  onboardingDone: boolean
   links: LinkSettings
   display: DisplaySettings
   presets: UserPreset[]
@@ -71,10 +92,15 @@ export interface Settings {
 }
 
 export const SETTINGS_KEY = 'dicomlens-settings'
-export const SETTINGS_VERSION = 5
+export const SETTINGS_VERSION = 6
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
+  theme: 'dark',
+  input: { middle: 'pan', right: 'zoom', wheel: 'scroll', oneFinger: 'tool' },
+  keymap: {},
+  archiveLimitMb: 2000,
+  onboardingDone: false,
   links: {
     referenceLines: true,
     referenceLinesAll: false,
@@ -151,8 +177,23 @@ function validPreset(value: unknown): value is UserPreset {
 export function migrateSettings(stored: unknown): Settings {
   const value = isObject(stored) ? stored : {}
   const dpi = Number(value.screenDpi)
+  const input = isObject(value.input) ? value.input : {}
+  const mouseTool = (v: unknown, fallback: MouseTool) => (['pan', 'zoom', 'windowLevel', 'scroll', 'none'].includes(v as string) ? (v as MouseTool) : fallback)
+  const limit = Number(value.archiveLimitMb)
   return {
     language: typeof value.language === 'string' ? value.language : DEFAULT_SETTINGS.language,
+    theme: ['system', 'dark', 'light', 'contrast'].includes(value.theme as string) ? (value.theme as Theme) : DEFAULT_SETTINGS.theme,
+    input: {
+      middle: mouseTool(input.middle, 'pan'),
+      right: mouseTool(input.right, 'zoom'),
+      wheel: input.wheel === 'zoom' ? 'zoom' : 'scroll',
+      oneFinger: input.oneFinger === 'scroll' ? 'scroll' : 'tool',
+    },
+    keymap: isObject(value.keymap)
+      ? Object.fromEntries(Object.entries(value.keymap).filter(([, keys]) => Array.isArray(keys) && keys.every((k) => typeof k === 'string')) as [string, string[]][])
+      : {},
+    archiveLimitMb: limit >= 50 && limit <= 1_000_000 ? limit : DEFAULT_SETTINGS.archiveLimitMb,
+    onboardingDone: value.onboardingDone === true,
     links: { ...DEFAULT_SETTINGS.links, ...pickBooleans(value.links) },
     display: { ...DEFAULT_SETTINGS.display, ...pickBooleans(value.display) },
     presets: Array.isArray(value.presets) ? value.presets.filter(validPreset) : [],
@@ -174,6 +215,15 @@ export function migrateSettings(stored: unknown): Settings {
 
 interface SettingsState extends Settings {
   setLanguage: (language: string) => void
+  setTheme: (theme: Theme) => void
+  setInput: (change: Partial<InputSettings>) => void
+  /** Keys of one command; null brings back its defaults. */
+  setShortcut: (commandId: string, keys: string[] | null) => void
+  resetShortcuts: () => void
+  setArchiveLimit: (mb: number) => void
+  setOnboardingDone: (done: boolean) => void
+  /** Replaces every preference (settings import). */
+  replaceAll: (settings: Settings) => void
   toggleLink: (key: keyof LinkSettings) => void
   toggleDisplay: (key: keyof DisplaySettings) => void
   addPreset: (preset: Omit<UserPreset, 'id'>) => void
@@ -201,6 +251,19 @@ export const useSettings = create<SettingsState>()(
     (set) => ({
       ...DEFAULT_SETTINGS,
       setLanguage: (language) => set({ language }),
+      setTheme: (theme) => set({ theme }),
+      setInput: (change) => set((state) => ({ input: { ...state.input, ...change } })),
+      setShortcut: (commandId, keys) =>
+        set((state) => {
+          const keymap = { ...state.keymap }
+          if (keys) keymap[commandId] = keys
+          else delete keymap[commandId]
+          return { keymap }
+        }),
+      resetShortcuts: () => set({ keymap: {} }),
+      setArchiveLimit: (archiveLimitMb) => set({ archiveLimitMb }),
+      setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
+      replaceAll: (settings) => set(migrateSettings(settings)),
       toggleLink: (key) => set((state) => ({ links: { ...state.links, [key]: !state.links[key] } })),
       toggleDisplay: (key) => set((state) => ({ display: { ...state.display, [key]: !state.display[key] } })),
       addPreset: (preset) => set((state) => ({ presets: [...state.presets, { ...preset, id: presetId() }] })),
@@ -237,8 +300,13 @@ export const useSettings = create<SettingsState>()(
       name: SETTINGS_KEY,
       version: SETTINGS_VERSION,
       storage: createJSONStorage(safeStorage),
-      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules, exportPrefs, pinnedTags, anonymizeTemplates, vrPresets }): Settings => ({
+      partialize: ({ language, theme, input, keymap, archiveLimitMb, onboardingDone, links, display, presets, screenDpi, measureUnit, hangingRules, exportPrefs, pinnedTags, anonymizeTemplates, vrPresets }): Settings => ({
         language,
+        theme,
+        input,
+        keymap,
+        archiveLimitMb,
+        onboardingDone,
         links,
         display,
         presets,

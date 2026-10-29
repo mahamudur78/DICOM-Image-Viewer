@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import {
   Enums,
   cache,
@@ -74,6 +75,16 @@ export function estimateVolumeBytes(series: Series) {
 }
 
 /** Phones, tablets and low-memory devices get smaller memory budgets. */
+/**
+ * Asks before loading a volume larger than this device's budget (phones and
+ * small-memory devices have a lower one). True when it may load.
+ */
+export function confirmVolumeMemory(series: Series, name: string) {
+  const bytes = estimateVolumeBytes(series)
+  if (isVolumeCached(series) || bytes <= volumeMemoryBudget()) return true
+  return window.confirm(t('messages.volumeMemory', { mb: Math.round(bytes / 1024 / 1024), name }))
+}
+
 export function isSmallDevice() {
   const deviceMemoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
   return window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)

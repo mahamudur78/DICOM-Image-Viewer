@@ -53,6 +53,28 @@ export const DEFAULT_KEYMAP: Record<string, string[]> = {
   'export.copyImage': ['ctrl+c'],
   'export.images': ['ctrl+s'],
   'export.print': ['ctrl+p'],
+  'help.shortcuts': ['?'],
+  'app.settings': ['ctrl+,'],
+}
+
+/** The default keys with the user's changes (a command's own list replaces its defaults). */
+export function effectiveKeymap(overrides: Record<string, string[]>): Record<string, string[]> {
+  return { ...DEFAULT_KEYMAP, ...overrides }
+}
+
+/** The key of a keyboard event, as written in keymaps ("ctrl+shift+z", "?", "arrowup"). */
+export function keyFromEvent(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey'>) {
+  const ctrl = event.ctrlKey || event.metaKey
+  return `${ctrl ? 'ctrl+' : ''}${ctrl && event.shiftKey ? 'shift+' : ''}${event.key.toLowerCase()}`
+}
+
+/** How a key is shown to the user. */
+export function keyLabel(key: string) {
+  const names: Record<string, string> = { ' ': 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', escape: 'Esc', delete: 'Delete', home: 'Home', end: 'End' }
+  return key
+    .split('+')
+    .map((part) => names[part] ?? (part === 'ctrl' ? 'Ctrl' : part === 'shift' ? 'Shift' : part.length === 1 ? part.toUpperCase() : part))
+    .join('+')
 }
 
 /**

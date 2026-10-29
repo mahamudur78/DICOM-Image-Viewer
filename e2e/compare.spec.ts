@@ -106,7 +106,7 @@ test('add a prior study, compare and scroll locked together; the PRIOR badge', a
   await compareMenu(page, 'Compare with prior study')
   await expect(page.locator('[data-viewport-id]')).toHaveCount(2)
   await expect(page.getByRole('button', { name: 'Lock sync at the current positions (other study)' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(viewport(page, 'viewport-1')).toContainText('2025-01-10')
+  await expect(viewport(page, 'viewport-1')).toContainText('Jan 10, 2025')
 
   // Positions are 1000 mm apart in another frame of reference; locked, they move together.
   await expect.poll(() => index(page, 'viewport-1')).toBe(await index(page, 'viewport-0'))
@@ -122,8 +122,8 @@ test('hanging protocols: a prior opens side by side; save and delete your own', 
   await openInput(page, prior(), { folder: true })
   // The built-in "CT with prior" protocol: current left, prior right, locked.
   await expect(page.locator('[data-viewport-id]')).toHaveCount(2)
-  await expect(viewport(page, 'viewport-0')).toContainText('2026-01-10')
-  await expect(viewport(page, 'viewport-1')).toContainText('2025-01-10')
+  await expect(viewport(page, 'viewport-0')).toContainText('Jan 10, 2026')
+  await expect(viewport(page, 'viewport-1')).toContainText('Jan 10, 2025')
   await expect(page.getByRole('button', { name: 'Lock sync at the current positions (other study)' })).toHaveAttribute('aria-pressed', 'true')
 
   await compareMenu(page, /^Save this layout/)
@@ -174,5 +174,5 @@ test('a series in its own window follows the main window', async ({ page, contex
 test('phone: a study with its prior opens side by side @mobile', async ({ page }) => {
   await openInput(page, prior(), { folder: true })
   await expect(page.locator('[data-viewport-id]')).toHaveCount(2)
-  await expect(viewport(page, 'viewport-1')).toContainText('2025-01-10')
+  await expect(viewport(page, 'viewport-1')).toContainText('Jan 10, 2025')
 })

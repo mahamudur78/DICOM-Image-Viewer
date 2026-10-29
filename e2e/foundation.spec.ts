@@ -59,12 +59,17 @@ test('non-DICOM files are reported in a toast', async ({ page }) => {
 })
 
 test('the stored language is applied, with English fallback', async ({ page }) => {
-  await page.addInitScript(() =>
-    localStorage.setItem('dicomlens-settings', JSON.stringify({ state: { language: 'bn' }, version: 1 })),
-  )
+  // Only the first load: the reload below keeps what the page stored.
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('dicomlens-settings')) localStorage.setItem('dicomlens-settings', JSON.stringify({ state: { language: 'bn' }, version: 1 }))
+  })
   await page.goto('/')
   await expect(page.locator('html')).toHaveAttribute('lang', 'bn')
   await expect(page.getByRole('button', { name: 'ফাইল খুলুন' })).toBeVisible()
-  // Not translated yet: falls back to English.
-  await expect(page.getByRole('heading', { name: 'Free Online DICOM Viewer' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'বিনামূল্যে অনলাইন DICOM ভিউয়ার' })).toBeVisible()
+  // Hindi is translated only in part: the rest falls back to English.
+  await page.evaluate(() => localStorage.setItem('dicomlens-settings', JSON.stringify({ state: { language: 'hi' }, version: 1 })))
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'फ़ाइलें खोलें' })).toBeVisible()
+  await expect(page.getByText('Supports .dcm and extension-less DICOM files')).toBeVisible()
 })

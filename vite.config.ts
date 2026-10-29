@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 
 /**
@@ -20,9 +21,32 @@ function reloadOnStatefulModules(): Plugin {
   }
 }
 
+const VERSION = `${(JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version}+${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`
+
+/**
+ * Writes `sw.js` after a build with the list of every built file, so the
+ * service worker can precache the whole app (WASM codecs included) for offline use.
+ */
+function serviceWorker(): Plugin {
+  return {
+    name: 'dicomlens:service-worker',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      const files = Object.keys(bundle).filter((name) => !name.endsWith('.map'))
+      const wasm = existsSync('public/wasm') ? readdirSync('public/wasm').map((name) => `wasm/${name}`) : []
+      const publicFiles = ['favicon.svg', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', ...wasm]
+      const source = readFileSync('src/pwa/sw-template.js', 'utf8')
+        .replace('__VERSION__', JSON.stringify(VERSION))
+        .replace('__FILES__', JSON.stringify(['./', ...publicFiles, ...files]))
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), reloadOnStatefulModules()],
+  plugins: [react(), tailwindcss(), reloadOnStatefulModules(), serviceWorker()],
+  define: { __APP_VERSION__: JSON.stringify(VERSION) },
   optimizeDeps: {
     // The image loader spawns its decode worker via `new URL(..., import.meta.url)`,
     // which breaks when Vite pre-bundles it.

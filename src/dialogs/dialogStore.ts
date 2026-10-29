@@ -21,6 +21,9 @@ export type DialogRequest =
   | { type: 'hanging' }
   | { type: 'export'; kind: 'images' | 'movie' | 'print' | 'anonymize' | 'convert' | 'tagEdit' }
   | { type: 'cpr' }
+  | { type: 'shortcuts' }
+  | { type: 'settings'; tab?: string }
+  | { type: 'archive' }
 
 /** One modal dialog at a time; requests made while one is open wait in line. */
 export const useDialogs = create<{ queue: DialogRequest[] }>()(() => ({ queue: [] }))
@@ -50,6 +53,15 @@ export const manageHangingRules = () => push({ type: 'hanging' })
 
 /** One of the export, print, anonymize, convert or tag-edit dialogs (loaded on first use). */
 export const openExportDialog = (kind: Extract<DialogRequest, { type: 'export' }>['kind']) => push({ type: 'export', kind })
+
+/** Every command and its keys (`?`). */
+export const openShortcuts = () => push({ type: 'shortcuts' })
+
+/** All preferences in one place. */
+export const openSettings = (tab?: string) => push({ type: 'settings', tab })
+
+/** Studies saved in this browser. */
+export const openArchive = () => push({ type: 'archive' })
 
 /** The curved reformat of the drawn path (loaded on first use). */
 export const openCprDialog = () => push({ type: 'cpr' })

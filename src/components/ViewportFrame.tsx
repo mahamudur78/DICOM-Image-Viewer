@@ -35,6 +35,8 @@ export function ViewportFrame({ viewportId, kind, active, onActivate, onToggleMa
         onActivate()
         contextMenu.onPointerDownCapture(event)
       }}
+      onPointerMoveCapture={contextMenu.onPointerMoveCapture}
+      onPointerCancelCapture={contextMenu.onPointerCancelCapture}
       onPointerUpCapture={contextMenu.onPointerUpCapture}
       onContextMenu={contextMenu.onContextMenu}
       onDoubleClick={(event) => {

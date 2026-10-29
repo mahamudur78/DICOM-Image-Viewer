@@ -53,7 +53,7 @@ function CommandButton({ command, ctx }: { command: Command; ctx: CommandContext
       aria-label={title}
       aria-pressed={active}
       disabled={!isEnabled(command, ctx)}
-      className={`grid h-9 min-w-9 place-items-center rounded-md px-2 text-base transition disabled:opacity-30 ${
+      className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-md px-2 text-base transition disabled:opacity-30 max-sm:h-11 max-sm:min-w-11 ${
         active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
       }`}
     >
@@ -179,7 +179,7 @@ function MenuButton({ label, icon, sections, active = false }: { label: string; 
           const rect = event.currentTarget.getBoundingClientRect()
           setAnchor(anchor ? null : { x: rect.left, y: rect.bottom + 4 })
         }}
-        className={`flex h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold ${
+        className={`flex h-9 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-semibold max-sm:h-11 ${
           active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
         }`}
       >
@@ -271,6 +271,7 @@ const FUNCTIONAL_MENU: MenuSection[] = [
 const OBJECTS_MENU: MenuSection[] = [
   { title: 'menus.keyImages', commands: ['objects.keyImage', 'objects.keyOnly', 'objects.saveKeyObjects'] },
   { title: 'menus.saveObjects', commands: ['objects.saveSr', 'objects.savePresentation'] },
+  { title: 'menus.archive', commands: ['archive.save', 'archive.open'] },
 ]
 
 const EXPORT_MENU: MenuSection[] = [
@@ -458,7 +459,11 @@ export function Toolbar() {
   ].map((section) => section.filter(Boolean))
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5">
+    // On phones the toolbar sits at the bottom, within thumb reach, as one scrolling row of larger buttons.
+    <div
+      data-testid="toolbar"
+      className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5 max-sm:order-last max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:border-t max-sm:border-b-0"
+    >
       {sections
         .filter((section) => section.length > 0)
         .map((section, i) => (

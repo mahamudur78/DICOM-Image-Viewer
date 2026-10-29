@@ -8,6 +8,9 @@ import { INPUT, Modal, PRIMARY, SECONDARY } from './Modal'
 const ExportDialog = lazy(() => import('../export/ExportDialogs'))
 const HangingRulesDialog = lazy(() => import('./HangingRulesDialog'))
 const CprDialog = lazy(() => import('../volume/CprDialog'))
+const ShortcutsDialog = lazy(() => import('./ShortcutsDialog'))
+const SettingsDialog = lazy(() => import('./SettingsDialog'))
+const ArchiveDialog = lazy(() => import('../archive/ArchiveDialog'))
 
 /** Renders the first queued dialog. */
 export function Dialogs() {
@@ -38,6 +41,24 @@ export function Dialogs() {
       return (
         <Suspense fallback={null}>
           <ExportDialog kind={request.kind} />
+        </Suspense>
+      )
+    case 'shortcuts':
+      return (
+        <Suspense fallback={null}>
+          <ShortcutsDialog />
+        </Suspense>
+      )
+    case 'settings':
+      return (
+        <Suspense fallback={null}>
+          <SettingsDialog tab={request.tab} />
+        </Suspense>
+      )
+    case 'archive':
+      return (
+        <Suspense fallback={null}>
+          <ArchiveDialog />
         </Suspense>
       )
   }

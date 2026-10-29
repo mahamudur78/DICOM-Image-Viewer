@@ -77,6 +77,8 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
         onActivate()
         contextMenu.onPointerDownCapture(event)
       }}
+      onPointerMoveCapture={contextMenu.onPointerMoveCapture}
+      onPointerCancelCapture={contextMenu.onPointerCancelCapture}
       onPointerUpCapture={contextMenu.onPointerUpCapture}
       onContextMenu={contextMenu.onContextMenu}
     >

@@ -208,6 +208,8 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
         onActivate()
         contextMenu.onPointerDownCapture(event)
       }}
+      onPointerMoveCapture={contextMenu.onPointerMoveCapture}
+      onPointerCancelCapture={contextMenu.onPointerCancelCapture}
       onPointerUpCapture={contextMenu.onPointerUpCapture}
       onWheelCapture={active ? undefined : onActivate}
       onContextMenu={contextMenu.onContextMenu}

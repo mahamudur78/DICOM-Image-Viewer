@@ -23,7 +23,8 @@ import { MEASUREMENT_TOOLS } from '../measurements/tools'
 import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
 import { RegionWindowTool } from './regionWindowTool'
-import { createToolGroups } from './tools'
+import { applyInputBindings, createToolGroups } from './tools'
+import { useSettings } from '../store/settingsStore'
 import { createRenderingEngine } from './viewer'
 import { VolumeShiftTool } from './volume3d'
 
@@ -65,6 +66,7 @@ export function initCornerstone(): Promise<void> {
       addTool(tool)
     }
     createToolGroups()
+    useSettings.subscribe((state, previous) => state.input !== previous.input && applyInputBindings(state.input))
     installMeasurementEvents()
     installSphereVolumes()
     installWindowSync()

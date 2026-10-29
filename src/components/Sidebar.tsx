@@ -5,6 +5,7 @@ import { SERIES_DRAG_TYPE, type Series, type Study } from '../dicom/types'
 import { selectSeries } from '../store/viewerActions'
 import { selectCurrentDisplaySet, useViewer } from '../store/viewerStore'
 import { SeriesThumbnail } from './SeriesThumbnail'
+import { formatStudyDate } from '../i18n/format'
 
 /**
  * Patients → studies → series. On large screens a column with collapsible
@@ -104,7 +105,7 @@ function StudyItem({ study, prior, showPatient, collapsed, onToggle, activeSerie
         )}
         <div className="flex items-center gap-1 text-xs text-slate-400">
           <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
-          <span className="truncate">{[study.studyDate, study.description].filter(Boolean).join(' · ')}</span>
+          <span className="truncate">{[formatStudyDate(study.studyDate), study.description].filter(Boolean).join(' · ')}</span>
           {prior && <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-300">{t('sidebar.prior')}</span>}
           <span className="ml-auto shrink-0 text-slate-500">{t('sidebar.seriesCount', { count: study.series.length })}</span>
         </div>

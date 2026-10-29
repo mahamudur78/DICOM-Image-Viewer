@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { cache, getRenderingEngine, type Types } from '@cornerstonejs/core'
 import { RENDERING_ENGINE_ID } from '../cornerstone/constants'
-import { loadVolume, volumeIdFor } from '../cornerstone/mpr'
+import { confirmVolumeMemory, loadVolume, volumeIdFor } from '../cornerstone/mpr'
 import type { DisplaySet, Series } from '../dicom/types'
 import { objectKeysOf, overlayGrid, startObjectOverlay, updateFusion, useFusion, type FusionSetting } from '../functional/fusionStore'
 import { SEGMENT_COLORS, MAX_SEGMENTS, type Segment } from '../objects/labels'
@@ -115,6 +115,7 @@ let created = 0
 
 /** A new, empty segmentation on the volume of a series. */
 export async function createSegmentation(base: DisplaySet) {
+  if (!confirmVolumeMemory(base.series, 'Segmentation')) return null
   const image = await imageGridOf(base.series)
   if (!image) return null
   created++

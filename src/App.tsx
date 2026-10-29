@@ -2,27 +2,33 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Welcome } from './components/Welcome'
 import { Dialogs } from './dialogs/Dialogs'
-import { collectDroppedFiles, type SourceFile } from './dicom/collectFiles'
+import { openArchive, openSettings, openShortcuts } from './dialogs/dialogStore'
+import { collectDroppedFiles } from './dicom/collectFiles'
 import { notify } from './notifications/toastStore'
 import { Toasts } from './notifications/Toasts'
 import { loadRuntime, startViewer } from './runtime'
+import { openFiles } from './app/openFiles'
 import { useViewer } from './store/viewerStore'
 import { onWindowMessage, postWindowMessage, secondaryWindowId } from './app/windowChannel'
 
+const HEADER_BUTTON = 'rounded-md px-2 py-1 text-sm text-slate-300 hover:bg-slate-800 hover:text-white'
+
 const Workspace = lazy(() => loadRuntime().then((m) => ({ default: m.Workspace })))
 
-/** Opens files once the viewer runtime is ready (it may still be downloading). */
-async function openFiles(files: SourceFile[]) {
-  if (files.length === 0) return
-  useViewer.setState({ loading: { done: 0, total: files.length } })
-  try {
-    await startViewer()
-  } catch {
-    useViewer.setState({ loading: null })
-    return // startViewer's failure is already reported by App
-  }
-  const runtime = await loadRuntime()
-  await runtime.openFiles(files)
+interface LaunchParams {
+  files: { getFile(): Promise<File> }[]
+}
+
+/** Files the operating system opened with the installed app (PWA file handling). */
+function useLaunchedFiles() {
+  useEffect(() => {
+    const queue = (window as unknown as { launchQueue?: { setConsumer(consumer: (params: LaunchParams) => void): void } }).launchQueue
+    queue?.setConsumer(async (params) => {
+      if (!params.files.length) return
+      const files = await Promise.all(params.files.map((handle) => handle.getFile()))
+      await openFiles(files.map((file) => ({ file, path: file.name })))
+    })
+  }, [])
 }
 
 export default function App() {
@@ -31,6 +37,7 @@ export default function App() {
   const loading = useViewer((s) => s.loading)
   const distractionFree = useViewer((s) => s.distractionFree)
   const [dragging, setDragging] = useState(false)
+  useLaunchedFiles()
 
   // Download and start the viewer in the background while the welcome page is shown.
   useEffect(() => {
@@ -84,15 +91,29 @@ export default function App() {
       }}
       onDrop={handleDrop}
     >
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:z-50 focus:rounded focus:bg-sky-600 focus:px-3 focus:py-1 focus:text-white">
+        {t('app.skipToViewer')}
+      </a>
       <header className={`flex items-center gap-3 border-b border-slate-800 px-4 py-2 ${distractionFree && hasStudies ? 'hidden' : ''}`}>
         <span className="text-lg">🩻</span>
         <span className="font-semibold text-slate-100">{t('app.name')}</span>
         <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400 sm:inline">
           {t('app.privacyBadge')}
         </span>
+        <nav className="ms-auto flex items-center gap-1" aria-label={t('app.menu')}>
+          <button className={HEADER_BUTTON} onClick={() => openArchive()}>
+            {t('archive.title')}
+          </button>
+          <button className={HEADER_BUTTON} onClick={() => openShortcuts()} aria-label={t('help.shortcutsTitle')} title={t('help.shortcutsTitle')}>
+            ?
+          </button>
+          <button className={HEADER_BUTTON} onClick={() => openSettings()} aria-label={t('settings.title')} title={t('settings.title')}>
+            ⚙
+          </button>
+        </nav>
       </header>
 
-      <main className="relative flex min-h-0 flex-1 flex-col">
+      <main id="main" tabIndex={-1} className="relative flex min-h-0 flex-1 flex-col focus:outline-none">
         {hasStudies ? (
           <Suspense fallback={null}>
             <Workspace />

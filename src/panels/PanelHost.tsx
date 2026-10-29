@@ -6,7 +6,7 @@ import { PANELS } from './panels'
 
 /**
  * The open side panel: a column on the right on large screens, and a sheet
- * covering the viewer on phones and tablets.
+ * over the lower part of the viewer on phones and tablets.
  */
 export function PanelHost() {
   const { t } = useTranslation()
@@ -17,7 +17,7 @@ export function PanelHost() {
   return (
     <aside
       aria-label={t(title)}
-      className="absolute inset-0 z-20 flex flex-col border-slate-800 bg-slate-900 lg:static lg:inset-auto lg:w-[28rem] lg:border-l"
+      className="absolute inset-x-0 bottom-0 z-20 flex h-[65%] flex-col rounded-t-xl border-t border-slate-700 bg-slate-900 shadow-2xl lg:static lg:inset-auto lg:h-auto lg:w-[28rem] lg:rounded-none lg:border-l lg:border-t-0 lg:border-slate-800 lg:shadow-none"
     >
       <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
         <h2 className="text-sm font-semibold text-slate-100">{t(title)}</h2>

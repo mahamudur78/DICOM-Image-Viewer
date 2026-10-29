@@ -3,6 +3,7 @@ import { metaData } from '@cornerstonejs/core'
 import { annotation as csAnnotation } from '@cornerstonejs/tools'
 import type { Annotation } from '@cornerstonejs/tools/types'
 import { t } from '../i18n'
+import { localizeDigits } from '../i18n/format'
 import { getScaling } from '../dicom/imagePlaneMetadata'
 import { useSettings } from '../store/settingsStore'
 import { formatArea, formatLength, formatVolume, round } from './geometry'
@@ -30,6 +31,10 @@ const value = (v: number, unit: string) => `${round(v)}${unit ? ` ${unit}` : ''}
 
 /** One line per value of a measurement result. */
 export function resultLines(result: MeasurementResult, imageId: string | undefined, detailed = false): string[] {
+  return measuredLines(result, imageId, detailed).map((line) => localizeDigits(line))
+}
+
+function measuredLines(result: MeasurementResult, imageId: string | undefined, detailed: boolean): string[] {
   const unit = useSettings.getState().measureUnit
   const tag = SOURCE_TAGS[result.source] ? ` (${t(SOURCE_TAGS[result.source]!)})` : ''
   const length = (mm: number) => formatLength(mm, result.base, unit) + tag

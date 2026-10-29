@@ -3,6 +3,7 @@ import { getViewport } from '../cornerstone/viewer'
 import { KEY_SUFFIX, toggleKeyFilter, toggleKeyImage } from '../objects/keyImages'
 import { t } from '../i18n'
 import { notify } from '../notifications/toastStore'
+import { openArchive } from '../dialogs/dialogStore'
 import type { Command, CommandContext } from './commands'
 
 const stackCell = (ctx: CommandContext) => ctx.mode === 'grid' && ctx.kind === 'stack'
@@ -16,6 +17,13 @@ function currentImage(ctx: CommandContext) {
 }
 
 export const objectCommands: Command[] = [
+  {
+    id: 'archive.save',
+    group: 'objects',
+    label: 'archive.saveCurrent',
+    run: () => void import('../archive/save').then((m) => m.saveCurrentStudy()),
+  },
+  { id: 'archive.open', group: 'objects', label: 'archive.openArchive', run: () => openArchive() },
   {
     id: 'objects.keyImage',
     group: 'objects',

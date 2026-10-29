@@ -116,6 +116,13 @@ separate chunk that starts downloading right after the first render.
   depth, contours, filling between slices, undo and redo; volume, mean / SD / min / max (HU, SUV) and largest
   diameter per segment; surfaces in 3D and STL; TMTV with lesions, SUVmax, SUVmean and TLG on PET; saved as
   DICOM SEG or RTSTRUCT (loaded SEG and RTSTRUCT can be edited too)
+- Everyday use: full Bengali translation (Hindi and Arabic started, right-to-left supported; see
+  [docs/TRANSLATING.md](docs/TRANSLATING.md)), numbers and dates in the reader's language, dark / light /
+  high-contrast themes, a settings page (shortcuts with conflict checks, mouse buttons, touch, backup and
+  restore), `?` for every shortcut, phone layout with the toolbar at the bottom and panels as sheets,
+  pinch zoom and long-press menus; installable and usable offline (PWA, opens .dcm files from the system);
+  a local archive in the browser with search, status, keywords and CSV; a first-visit guide and a sample
+  study made in the browser
 - Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
   seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
   movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or
@@ -127,6 +134,6 @@ separate chunk that starts downloading right after the first render.
 - Measurements panel: jump to the image, label, colour, hide, delete (image / series / all), undo
   and redo, copy onto another slice, copy values, CSV export, save and load as JSON
 
-Keyboard: `*` key image · `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Ctrl+C` copy image · `Ctrl+S` export images · `Ctrl+P` print · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
+Keyboard: `?` all shortcuts (change them in Settings, `Ctrl+,`) · `*` key image · `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Ctrl+C` copy image · `Ctrl+S` export images · `Ctrl+P` print · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

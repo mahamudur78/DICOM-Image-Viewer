@@ -26,6 +26,7 @@ import { CineControls } from './CineControls'
 import { ComparisonLayer } from './ComparisonLayer'
 import { FusionLayer, ObjectLayers } from './FusionLayer'
 import { PresentationLayer } from './PresentationLayer'
+import { formatStudyDate, localizeDigits } from '../i18n/format'
 import { SegmentPreviewLayer } from './SegmentPreviewLayer'
 import { isKeyImage, originalId, useKeyImages } from '../objects/keyImages'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
@@ -190,6 +191,8 @@ export function Viewport({
         onActivate()
         contextMenu.onPointerDownCapture(event)
       }}
+      onPointerMoveCapture={contextMenu.onPointerMoveCapture}
+      onPointerCancelCapture={contextMenu.onPointerCancelCapture}
       onPointerUpCapture={contextMenu.onPointerUpCapture}
       onWheelCapture={active ? undefined : onActivate}
       onDoubleClick={() => {
@@ -240,7 +243,7 @@ export function Viewport({
         <div className="absolute right-5 top-2 max-w-[40%] text-right @max-xs:hidden">
           {display.cornerStudy && (
             <>
-              <div className="truncate">{study.studyDate}</div>
+              <div className="truncate">{formatStudyDate(study.studyDate)}</div>
               <div>
                 {series.modality} · #{series.seriesNumber}
               </div>
@@ -255,9 +258,9 @@ export function Viewport({
         </div>
         {/* Narrow enough to stay clear of the cine controls in the middle; long values wrap. */}
         <div className="absolute bottom-2 left-2 max-w-[calc(50%-6rem)] break-words">
-          {display.cornerZoom && <div>{t('viewport.zoom', { zoom: overlay.zoom.toFixed(2) })}</div>}
+          {display.cornerZoom && <div>{localizeDigits(t('viewport.zoom', { zoom: overlay.zoom.toFixed(2) }))}</div>}
           {display.cornerWindow && overlay.windowWidth !== null && (
-            <div>{t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter })}</div>
+            <div>{localizeDigits(t('viewport.window', { width: overlay.windowWidth, center: overlay.windowCenter }))}</div>
           )}
           {reading && (
             <div data-testid="pixel-value" className="@max-xs:hidden">
@@ -268,7 +271,7 @@ export function Viewport({
         </div>
         {display.cornerSlice && (
           <div className="absolute bottom-2 right-5 text-right">
-            {overlay.index + 1} / {count}
+            {localizeDigits(`${overlay.index + 1} / ${count}`)}
           </div>
         )}
 

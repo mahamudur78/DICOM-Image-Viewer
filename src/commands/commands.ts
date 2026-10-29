@@ -46,7 +46,8 @@ import { findPriorMatch } from '../comparison/priors'
 import { filterCandidates } from '../dicom/collectFiles'
 import { addFiles, compareWithPrior, reapplyHanging, saveHangingRule } from '../store/viewerActions'
 import { manageHangingRules } from '../dialogs/dialogStore'
-import { DEFAULT_KEYMAP } from './keymap'
+import { DEFAULT_KEYMAP, effectiveKeymap } from './keymap'
+import { openSettings, openShortcuts } from '../dialogs/dialogStore'
 import { exportCommands } from './exportCommands'
 import { reformatCommands } from './reformatCommands'
 import { measureCommands } from './measureCommands'
@@ -797,10 +798,19 @@ const ALL_COMMANDS: Command[] = [
   ...reformatCommands,
   ...functionalCommands,
   ...objectCommands,
+  { id: 'help.shortcuts', group: 'display', label: 'help.shortcutsCommand', run: () => openShortcuts() },
+  { id: 'app.settings', group: 'display', label: 'settings.command', run: () => openSettings() },
 ]
 
-/** Every command with its keyboard shortcuts from the keymap. */
+/** Every command with its keyboard shortcuts from the keymap (the user's, over the defaults). */
 export const COMMANDS: Command[] = ALL_COMMANDS.map((command) => ({ ...command, keys: DEFAULT_KEYMAP[command.id] }))
+
+function applyKeymap(overrides: Record<string, string[]>) {
+  const keymap = effectiveKeymap(overrides)
+  for (const command of COMMANDS) command.keys = keymap[command.id]
+}
+applyKeymap(useSettings.getState().keymap)
+useSettings.subscribe((state, previous) => state.keymap !== previous.keymap && applyKeymap(state.keymap))
 
 const byId = new Map(COMMANDS.map((command) => [command.id, command]))
 

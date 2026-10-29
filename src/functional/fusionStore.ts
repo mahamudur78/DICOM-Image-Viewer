@@ -3,7 +3,7 @@
 // three MPR views (and the PET/CT layout's fusion row).
 import { Enums, cache, eventTarget, metaData } from '@cornerstonejs/core'
 import { create } from 'zustand'
-import { loadVolume } from '../cornerstone/mpr'
+import { confirmVolumeMemory, loadVolume } from '../cornerstone/mpr'
 import { createGridVolume, volumeGrid } from '../cornerstone/volume3dTools'
 import type { Segment } from '../objects/labels'
 import type { DisplaySet } from '../dicom/types'
@@ -101,6 +101,7 @@ const frameOfReference = (displaySet: DisplaySet) =>
  * same frame of reference, otherwise centre on centre.
  */
 export async function startFusion(key: string, base: DisplaySet, overlay: DisplaySet, baseCentre: number[] | null) {
+  if (!confirmVolumeMemory(overlay.series, 'Fusion')) return
   const style: OverlayStyle = { colormap: overlay.series.modality === 'PT' || overlay.series.modality === 'NM' ? 'hot' : 'jet', opacity: 0.5, lower: 0, upper: 1, threshold: 0 }
   useFusion.setState((s) => ({ settings: { ...s.settings, [key]: { overlay, volumeId: null, progress: 0, style, registration: IDENTITY, visible: true } } }))
   const volumeId = await loadVolume(overlay.series, (progress) => updateFusion(key, { progress }))
