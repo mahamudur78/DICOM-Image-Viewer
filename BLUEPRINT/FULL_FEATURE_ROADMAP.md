@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৩ সম্পন্ন, ফেজ ৪ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৪ সম্পন্ন, ফেজ ৫ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -163,17 +163,17 @@
 
 ## ফেজ ৪: তুলনা ও sync
 
-- [ ] **Zoom/pan sync** (টুলবারে আলাদা link বোতাম)
-- [ ] **Sync-এর ধরন আলাদা করে বাছা:** slice, W/L, zoom/pan, cine; viewport-ভিত্তিক group
-- [ ] **ভিন্ন স্টাডির হাতে sync:** দুটো viewport-এ মিলিয়ে নিয়ে "lock", তারপর পার্থক্য রেখে একসাথে স্ক্রল (ভিন্ন frame of reference)
-- [ ] **আগের স্টাডির সাথে তুলনা (prior):** একই রোগীর পুরনো স্টাডি পাশে খোলা, তারিখ অনুযায়ী সাজানো
-- [ ] **গ্রিডে 3D cursor:** এক viewport-এ ক্লিক → অন্য সব viewport (ভিন্ন plane সহ) সেই বিন্দুর slice-এ যাবে আর বিন্দু দেখাবে
-- [ ] **2D, MPR আর 3D-তে একসাথে axis intersection sync** (RadiAnt 2025.2-এর মতো)
-- [ ] **Reference line-এর উন্নতি:** সব viewport-এর রেখা একসাথে, প্রথম/শেষ slice-এর রেখা, রং অনুযায়ী
-- [ ] **Hanging protocol ইঞ্জিন:** নিয়ম (modality, body part, সিরিজের বর্ণনা, prior আছে কিনা) থেকে লেআউট ও কোন viewport-এ কোন সিরিজ; ব্যবহারকারী নিজের নিয়ম সেভ করতে পারবে
-- [ ] **Viewport-এর অবস্থা সেভ:** সিরিজ বদলে ফেরত এলে আগের zoom/W/L/slice
-- [ ] **আলাদা ব্রাউজার উইন্ডোতে সিরিজ খোলা** (multi-monitor; `window.open` + BroadcastChannel দিয়ে sync)
-- [ ] Definition of Done পূরণ
+- [x] **Zoom/pan sync** (টুলবারে আলাদা link বোতাম)
+- [x] **Sync-এর ধরন আলাদা করে বাছা:** slice, W/L, zoom/pan, cine; viewport-ভিত্তিক group
+- [x] **ভিন্ন স্টাডির হাতে sync:** দুটো viewport-এ মিলিয়ে নিয়ে "lock", তারপর পার্থক্য রেখে একসাথে স্ক্রল (ভিন্ন frame of reference)
+- [x] **আগের স্টাডির সাথে তুলনা (prior):** একই রোগীর পুরনো স্টাডি পাশে খোলা, তারিখ অনুযায়ী সাজানো
+- [x] **গ্রিডে 3D cursor:** এক viewport-এ ক্লিক → অন্য সব viewport (ভিন্ন plane সহ) সেই বিন্দুর slice-এ যাবে আর বিন্দু দেখাবে
+- [x] **2D, MPR আর 3D-তে একসাথে axis intersection sync** (RadiAnt 2025.2-এর মতো)
+- [x] **Reference line-এর উন্নতি:** সব viewport-এর রেখা একসাথে, প্রথম/শেষ slice-এর রেখা, রং অনুযায়ী
+- [x] **Hanging protocol ইঞ্জিন:** নিয়ম (modality, body part, সিরিজের বর্ণনা, prior আছে কিনা) থেকে লেআউট ও কোন viewport-এ কোন সিরিজ; ব্যবহারকারী নিজের নিয়ম সেভ করতে পারবে
+- [x] **Viewport-এর অবস্থা সেভ:** সিরিজ বদলে ফেরত এলে আগের zoom/W/L/slice
+- [x] **আলাদা ব্রাউজার উইন্ডোতে সিরিজ খোলা** (multi-monitor; `window.open` + BroadcastChannel দিয়ে sync)
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_4_COMPARISON_SYNC_PLAN.md](PHASE_4_COMPARISON_SYNC_PLAN.md))
 
 ## ফেজ ৫: Export, প্রিন্ট ও anonymize
 

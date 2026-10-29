@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { Enums, getRenderingEngine } from '@cornerstonejs/core'
+import { useEffect, useReducer, useRef, useState } from 'react'
+import { useCursor3D } from '../comparison/cursor3d'
+import { MPR_VR_VIEWPORT_ID, RENDERING_ENGINE_ID } from '../cornerstone/constants'
 import { useTranslation } from 'react-i18next'
 import { resizeViewports } from '../cornerstone/viewer'
 import { applyPreset, mountVrViewport, onShiftChange, showVolume3D, unmountVrViewport } from '../cornerstone/volume3d'
@@ -74,6 +77,7 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
       onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
+      {viewportId === MPR_VR_VIEWPORT_ID && <CenterMarker viewportId={viewportId} />}
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[50%]">
           <div className="font-semibold text-sky-300">{t('viewport.vr')}</div>
@@ -90,5 +94,36 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Where the MPR planes cross, drawn over the 3D rendering (a point inside the
+ * volume would be hidden by the tissue in front of it).
+ */
+function CenterMarker({ viewportId }: { viewportId: string }) {
+  const { t } = useTranslation()
+  const center = useCursor3D((s) => s.mprCenter)
+  const [, redraw] = useReducer((n: number) => n + 1, 0)
+
+  // Rotating the 3D view moves the projected point.
+  useEffect(() => {
+    const element = getRenderingEngine(RENDERING_ENGINE_ID)?.getViewport(viewportId)?.element
+    if (!element) return
+    element.addEventListener(Enums.Events.CAMERA_MODIFIED, redraw)
+    return () => element.removeEventListener(Enums.Events.CAMERA_MODIFIED, redraw)
+  }, [viewportId])
+
+  const viewport = getRenderingEngine(RENDERING_ENGINE_ID)?.getViewport(viewportId)
+  if (!center || !viewport) return null
+  const [x, y] = viewport.worldToCanvas(center as [number, number, number])
+  return (
+    <svg className="pointer-events-none absolute inset-0 h-full w-full" data-testid="mpr-center" aria-label={t('cursor3d.title')}>
+      <g stroke="#f43f5e" strokeWidth={1.5} fill="none">
+        <circle cx={x} cy={y} r={6} />
+        <line x1={x - 12} y1={y} x2={x + 12} y2={y} />
+        <line x1={x} y1={y - 12} x2={x} y2={y + 12} />
+      </g>
+    </svg>
   )
 }

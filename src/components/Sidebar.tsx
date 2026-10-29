@@ -59,10 +59,11 @@ export function Sidebar() {
               {patient.id && <div className="truncate text-xs text-slate-500">{patient.id}</div>}
             </div>
           )}
-          {patient.studies.map((study) => (
+          {patient.studies.map((study, i) => (
             <StudyItem
               key={study.studyInstanceUID}
               study={study}
+              prior={i > 0}
               showPatient={!showPatients}
               collapsed={collapsed.has(study.studyInstanceUID) && !query}
               onToggle={() => toggle(study.studyInstanceUID)}
@@ -78,6 +79,8 @@ export function Sidebar() {
 
 interface StudyItemProps {
   study: Study
+  /** An earlier study of the patient (studies are newest first). */
+  prior: boolean
   showPatient: boolean
   collapsed: boolean
   onToggle: () => void
@@ -85,7 +88,7 @@ interface StudyItemProps {
   displayed: Set<Series | undefined>
 }
 
-function StudyItem({ study, showPatient, collapsed, onToggle, activeSeries, displayed }: StudyItemProps) {
+function StudyItem({ study, prior, showPatient, collapsed, onToggle, activeSeries, displayed }: StudyItemProps) {
   const { t } = useTranslation()
   return (
     <div className="flex shrink-0 lg:block">
@@ -102,6 +105,7 @@ function StudyItem({ study, showPatient, collapsed, onToggle, activeSeries, disp
         <div className="flex items-center gap-1 text-xs text-slate-400">
           <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
           <span className="truncate">{[study.studyDate, study.description].filter(Boolean).join(' · ')}</span>
+          {prior && <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-300">{t('sidebar.prior')}</span>}
           <span className="ml-auto shrink-0 text-slate-500">{t('sidebar.seriesCount', { count: study.series.length })}</span>
         </div>
       </button>

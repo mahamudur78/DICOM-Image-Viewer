@@ -54,6 +54,10 @@ export interface ViewerState {
   preset: string
   /** Header, toolbar and series list hidden: only the images. */
   distractionFree: boolean
+  /** Grid cells left out of sync (each cell's link toggle). */
+  unlinkedCells: number[]
+  /** Slice sync keeps the offsets the viewports had when it was locked (e.g. a prior study). */
+  syncLocked: boolean
 }
 
 const EMPTY_CELLS: (DisplaySet | null)[] = Array(MAX_VIEWPORTS).fill(null)
@@ -75,6 +79,8 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   slab: { mode: 'mip', thickness: 0 },
   preset: defaultPresetFor('CT'),
   distractionFree: false,
+  unlinkedCells: [],
+  syncLocked: false,
 }
 
 export const useViewer = create<ViewerState>()(() => INITIAL_VIEWER_STATE)
@@ -108,16 +114,33 @@ export function beginLoading(total: number) {
 
 export const setLoadingProgress = (done: number, total: number) => set({ loading: { done, total } })
 
-export function showStudies(studies: Study[], displaySets: DisplaySet[]) {
+export function showStudies(studies: Study[], displaySets: (DisplaySet | null)[], layout?: Layout) {
   set({
     loading: null,
     studies,
     cells: EMPTY_CELLS.map((_, cell) => displaySets[cell] ?? null),
-    layout: defaultLayoutFor(displaySets.length),
+    layout: layout ?? defaultLayoutFor(displaySets.length),
     activeCell: 0,
     maximizedCell: null,
+    unlinkedCells: [],
+    syncLocked: false,
   })
 }
+
+/** Replaces the study list without touching the grid (files added to an open study). */
+export const setStudies = (studies: Study[]) => set({ loading: null, studies })
+
+export const toggleCellLink = (cell: number) =>
+  set((state) => ({
+    unlinkedCells: state.unlinkedCells.includes(cell) ? state.unlinkedCells.filter((c) => c !== cell) : [...state.unlinkedCells, cell],
+  }))
+
+export const setSyncLocked = (syncLocked: boolean) => set({ syncLocked })
+
+/** Grid cell of a stack viewport id, or -1. */
+export const cellOfViewport = (viewportId: string) => (viewportId.startsWith('viewport-') ? Number(viewportId.slice(9)) : -1)
+
+export const isCellLinked = (state: ViewerState, cell: number) => !state.unlinkedCells.includes(cell)
 
 export function showInCell(cell: number, displaySet: DisplaySet) {
   set((state) => ({ cells: state.cells.map((existing, i) => (i === cell ? displaySet : existing)), activeCell: cell }))

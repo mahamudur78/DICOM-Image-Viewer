@@ -1,13 +1,21 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import type { HangingRule } from '../dicom/hangingProtocol'
 import type { LengthUnit } from '../measurements/geometry'
 import { safeStorage } from './safeStorage'
 
 /** Viewport linking options toggled from the toolbar. */
 export interface LinkSettings {
   referenceLines: boolean
+  /** Reference lines of every other viewport, not only the active one. */
+  referenceLinesAll: boolean
+  /** The first and last slice of the active series as dashed lines. */
+  referenceLinesEnds: boolean
   sliceSync: boolean
   voiSync: boolean
+  zoomPanSync: boolean
+  /** Other cine loops follow the frame of the one being played or scrolled. */
+  cineSync: boolean
 }
 
 /** What is drawn on top of the images. */
@@ -50,14 +58,24 @@ export interface Settings {
   screenDpi: number
   /** Unit of measured lengths, areas and volumes. */
   measureUnit: LengthUnit
+  /** The user's hanging protocols, tried before the built-in ones. */
+  hangingRules: HangingRule[]
 }
 
 export const SETTINGS_KEY = 'dicomlens-settings'
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
-  links: { referenceLines: true, sliceSync: false, voiSync: false },
+  links: {
+    referenceLines: true,
+    referenceLinesAll: false,
+    referenceLinesEnds: false,
+    sliceSync: false,
+    voiSync: false,
+    zoomPanSync: false,
+    cineSync: false,
+  },
   display: {
     overlayText: true,
     privacy: false,
@@ -75,12 +93,27 @@ export const DEFAULT_SETTINGS: Settings = {
   presets: [],
   screenDpi: 96,
   measureUnit: 'mm',
+  hangingRules: [],
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 function pickBooleans(source: unknown) {
   return isObject(source) ? Object.fromEntries(Object.entries(source).filter(([, v]) => typeof v === 'boolean')) : {}
+}
+
+function validRule(value: unknown): value is HangingRule {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.modality === 'string' &&
+    isObject(value.layout) &&
+    Number.isInteger(value.layout.rows) &&
+    Number.isInteger(value.layout.cols) &&
+    Array.isArray(value.cells) &&
+    value.cells.every(isObject)
+  )
 }
 
 function validPreset(value: unknown): value is UserPreset {
@@ -109,6 +142,7 @@ export function migrateSettings(stored: unknown): Settings {
     presets: Array.isArray(value.presets) ? value.presets.filter(validPreset) : [],
     screenDpi: dpi >= 50 && dpi <= 600 ? dpi : DEFAULT_SETTINGS.screenDpi,
     measureUnit: value.measureUnit === 'cm' ? 'cm' : 'mm',
+    hangingRules: Array.isArray(value.hangingRules) ? value.hangingRules.filter(validRule) : [],
   }
 }
 
@@ -123,6 +157,8 @@ interface SettingsState extends Settings {
   movePreset: (id: string, direction: -1 | 1) => void
   setScreenDpi: (dpi: number) => void
   setMeasureUnit: (unit: LengthUnit) => void
+  addHangingRule: (rule: HangingRule) => void
+  removeHangingRule: (id: string) => void
 }
 
 let presetCounter = 0
@@ -154,18 +190,21 @@ export const useSettings = create<SettingsState>()(
         }),
       setScreenDpi: (screenDpi) => set({ screenDpi }),
       setMeasureUnit: (measureUnit) => set({ measureUnit }),
+      addHangingRule: (rule) => set((state) => ({ hangingRules: [rule, ...state.hangingRules] })),
+      removeHangingRule: (id) => set((state) => ({ hangingRules: state.hangingRules.filter((r) => r.id !== id) })),
     }),
     {
       name: SETTINGS_KEY,
       version: SETTINGS_VERSION,
       storage: createJSONStorage(safeStorage),
-      partialize: ({ language, links, display, presets, screenDpi, measureUnit }): Settings => ({
+      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules }): Settings => ({
         language,
         links,
         display,
         presets,
         screenDpi,
         measureUnit,
+        hangingRules,
       }),
       migrate: (stored) => migrateSettings(stored),
       merge: (stored, current) => ({ ...current, ...migrateSettings(stored) }),

@@ -6,7 +6,8 @@ import { applyDicomdir, referencedFiles } from './dicomdir'
 import { isDicomdirPath, sniffFile, type ImageFormat } from './fileType'
 import { framesOf, frameOfReference } from './frames'
 import { decodedText, number, numbers, readHeader, text } from './header'
-import { clearImagePlanes, recordFrameLuts, recordImagePlane, recordImagerSpacing, recordScaling } from './imagePlaneMetadata'
+import { planeName } from '../comparison/planes'
+import { clearImagePlanes, getImagePlane, recordFrameLuts, recordImagePlane, recordImagerSpacing, recordScaling } from './imagePlaneMetadata'
 import { imageToDicom, newImportStudy } from './imageImport'
 import {
   formatDate,
@@ -37,6 +38,8 @@ export interface LoadResult {
 export interface LoadOptions {
   onProgress?: (done: number, total: number) => void
   askPassword: AskPassword
+  /** SOP Instance UIDs already open (when adding files); repeats are reported as duplicates. */
+  loadedInstances?: Set<string>
 }
 
 /** Files read at the same time; overlaps disk I/O without flooding memory. */
@@ -159,15 +162,16 @@ export async function loadFiles(inputs: SourceFile[], options: LoadOptions): Pro
     await runPool()
   }
 
-  return { studies: buildStudies(parsed, issues), issues }
+  return { studies: buildStudies(parsed, issues, options.loadedInstances), issues }
 }
 
 // --- grouping ---------------------------------------------------------------------
 
-function buildStudies(parsed: Parsed[], issues: LoadIssue[]): Study[] {
+function buildStudies(parsed: Parsed[], issues: LoadIssue[], loadedInstances?: Set<string>): Study[] {
   const studies = new Map<string, Study>()
   const drafts = new Map<string, SeriesDraft>()
-  const seen = new Set<string>()
+  // Files added to an open study: instances already shown count as duplicates.
+  const seen = new Set<string>(loadedInstances)
 
   for (const { source, dataSet } of parsed) {
     const sopClassUID = text(dataSet, 'x00080016') ?? text(dataSet, 'x00020002')
@@ -224,6 +228,7 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[]): Study[] {
           kind,
           hasOrientation: !!dataSet.string('x00200037') || !!dataSet.elements.x52009229,
           isLocalizer: isLocalizer(dataSet.string('x00080008'), description),
+          bodyPart: (text(dataSet, 'x00180015') ?? '').toUpperCase(),
           frameRate: frameRateOf(number(dataSet, 'x00181063'), number(dataSet, 'x00180040'), number(dataSet, 'x00082144')),
           frameTimeVector: numbers(dataSet, 'x00181065') ?? null,
           sortMode: 'instance',
@@ -240,11 +245,16 @@ function buildStudies(parsed: Parsed[], issues: LoadIssue[]): Study[] {
 
   for (const draft of drafts.values()) applySuv(draft)
   for (const study of studies.values()) {
-    study.series = study.series.flatMap((series) => splitSequences(drafts.get(series.id)!))
+    study.series = study.series.flatMap((series) => splitSequences(drafts.get(series.id)!)).map(withPlane)
     study.series.sort((a, b) => a.seriesNumber - b.seriesNumber)
   }
   // The same order as the sidebar: by patient, newest study first.
   return groupByPatient([...studies.values()]).flatMap((patient) => patient.studies)
+}
+
+function withPlane(series: Series): Series {
+  const plane = series.kind === 'image' ? getImagePlane(series.images[0]?.imageId) : undefined
+  return plane ? { ...series, plane: planeName(plane.rowCosines, plane.columnCosines) } : series
 }
 
 /** Title shown for a report, PDF or video series without a description. */

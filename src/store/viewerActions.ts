@@ -10,17 +10,21 @@ import {
   supportsWebGL2,
   volumeMemoryBudget,
 } from '../cornerstone/mpr'
-import { setSliceSync, setVoiSync } from '../cornerstone/sync'
-import { DEFAULT_TOOL, setPrimaryTool, setReferenceLines, setScaleBar, type ViewMode } from '../cornerstone/tools'
+import { lockSync, setVoiSync, setZoomPanSync, unlockSync } from '../cornerstone/sync'
+import { DEFAULT_TOOL, setPrimaryTool, setScaleBar, type ViewMode } from '../cornerstone/tools'
 import { forgetRememberedIndexes, rememberIndex, resetView, setActiveSource } from '../cornerstone/viewer'
+import { forgetAllViewStates, forgetViewState } from '../cornerstone/viewState'
 import { viewportKind } from '../cornerstone/viewportRegistry'
 import { resetVr } from '../cornerstone/volume3d'
 import { applyModalityDefaults } from '../cornerstone/display'
 import { setFilter } from './viewportDisplayStore'
-import { hangingOrder } from '../dicom/hangingProtocol'
+import { BUILT_IN_RULES, applyHangingRules, hangingOrder, ruleFromGrid } from '../dicom/hangingProtocol'
+import { findPriorMatch, mergeStudies } from '../comparison/priors'
+import { askForm } from '../dialogs/dialogStore'
 import type { SourceFile } from '../dicom/collectFiles'
 import { loadFiles, releaseLoadedImages } from '../dicom/loadFiles'
 import { askPassword, showIssues } from '../dialogs/dialogStore'
+import { clearCursor3D } from '../comparison/cursor3d'
 import type { DisplaySet, Series, Study } from '../dicom/types'
 import { t } from '../i18n'
 import { notify } from '../notifications/toastStore'
@@ -37,6 +41,8 @@ import {
   setLayout,
   setLoadingProgress,
   showInCell,
+  setActiveCell,
+  setStudies,
   showStudies,
   showVolumeView,
   useViewer,
@@ -53,6 +59,7 @@ export async function openFiles(files: SourceFile[]) {
   clearDocumentThumbnails()
   clearOverlayBitmaps()
   forgetRememberedIndexes()
+  forgetAllViewStates()
 
   const result = await loadFiles(files, { onProgress: setLoadingProgress, askPassword })
   const displaySets = hangingOrder(result.studies)
@@ -62,10 +69,84 @@ export async function openFiles(files: SourceFile[]) {
     notify(t('messages.noImages'), 'error', result.issues.length ? details : undefined)
     return
   }
-  showStudies(result.studies, displaySets)
+  clearCursor3D()
+  const hung = applyHangingRules(hangingRules(), result.studies)
+  if (hung) {
+    showStudies(result.studies, [...hung.cells, ...hung.rest], hung.layout)
+    // A protocol with a prior compares like "Compare with prior": slices locked together.
+    if (hung.rule.needsPrior) useViewer.setState({ syncLocked: true })
+  } else showStudies(result.studies, displaySets)
   // Duplicates are listed in the details but are not a failure on their own.
   const failed = result.issues.filter((issue) => issue.reason !== 'duplicate').length
   if (failed > 0) notify(t('messages.skippedFiles', { count: failed }), 'warning', details)
+}
+
+const hangingRules = () => [...useSettings.getState().hangingRules, ...BUILT_IN_RULES]
+
+/**
+ * Adds files to the open studies (e.g. a prior study of the same patient)
+ * without changing the grid. Instances already open are skipped.
+ */
+export async function addFiles(files: SourceFile[]) {
+  const { studies } = useViewer.getState()
+  if (files.length === 0) return
+  if (studies.length === 0) return openFiles(files)
+  const loadedInstances = new Set(studies.flatMap((study) => study.series.flatMap((series) => series.images.map((image) => image.sopInstanceUID))))
+  useViewer.setState({ loading: { done: 0, total: files.length } })
+  const result = await loadFiles(files, { onProgress: setLoadingProgress, askPassword, loadedInstances })
+  const details = { label: t('messages.details'), run: () => showIssues(result.issues) }
+  setStudies(mergeStudies(studies, result.studies))
+  const added = result.studies.reduce((count, study) => count + study.series.length, 0)
+  if (added === 0) notify(t('messages.nothingAdded'), 'info', result.issues.length ? details : undefined)
+  else notify(t('messages.seriesAdded', { count: added }), 'success')
+}
+
+/** Puts the active series next to its counterpart in the patient's previous study, slices locked together. */
+export function compareWithPrior() {
+  const state = useViewer.getState()
+  const current = selectActiveDisplaySet(state)
+  if (!current) return notify(t('messages.selectSeries'))
+  const prior = findPriorMatch(state.studies, current)
+  if (!prior) return notify(t('compare.noPrior'), 'info')
+  if (state.volumeView) closeVolumeView(DEFAULT_TOOL.grid)
+  if (state.layout.rows * state.layout.cols < 2 || state.maximizedCell !== null) setLayout({ rows: 1, cols: 2 })
+  showInCell(1, prior)
+  showInCell(0, current)
+  setActiveCell(0)
+  useViewer.setState({ syncLocked: true, unlinkedCells: [] })
+}
+
+/** A window opened for one series shows just that series. */
+export function showOnlySeries(seriesId: string) {
+  for (const study of useViewer.getState().studies) {
+    const series = study.series.find((s) => s.id === seriesId)
+    if (!series) continue
+    setLayout({ rows: 1, cols: 1 })
+    showInCell(0, { study, series })
+    return
+  }
+}
+
+/** Lays the grid out again by the first hanging protocol that matches. */
+export function reapplyHanging() {
+  const { studies } = useViewer.getState()
+  const hung = applyHangingRules(hangingRules(), studies)
+  if (!hung) return notify(t('hanging.noMatch'), 'info')
+  showStudies(studies, [...hung.cells, ...hung.rest], hung.layout)
+  notify(t('hanging.applied', { name: hung.rule.name }), 'success')
+}
+
+/** Saves the current grid as a hanging protocol for studies like this one. */
+export async function saveHangingRule() {
+  const { studies, layout, cells, activeCell } = useViewer.getState()
+  const current = cells[activeCell]?.study ?? studies[0]
+  if (!current) return
+  const values = await askForm('hanging.saveTitle', [{ name: 'name', label: 'hanging.name', type: 'text', value: current.description || current.series[0]?.modality || '', required: true }], 'dialogs.apply')
+  if (!values?.name.trim()) return
+  const rule = ruleFromGrid(values.name.trim(), layout, cells, current)
+  if (!rule) return
+  useSettings.getState().addHangingRule(rule)
+  notify(t('hanging.saved', { name: rule.name }), 'success')
 }
 
 /**
@@ -113,7 +194,9 @@ export function resetTargetViewport() {
   if (viewportKind(viewportId) === 'volume3d') return resetVr(viewportId, state.preset)
   resetView(viewportId)
   setFilter(viewportId, null)
-  const modality = selectCurrentDisplaySet(state)?.series.modality
+  const displaySet = selectCurrentDisplaySet(state)
+  if (displaySet) forgetViewState(displaySet.series.id)
+  const modality = displaySet?.series.modality
   if (modality) applyModalityDefaults(viewportId, modality)
 }
 
@@ -128,6 +211,8 @@ export function useCornerstoneBridge() {
   const maximizedCell = useViewer((s) => s.maximizedCell)
   const activeViewportId = useViewer((s) => (s.cells[s.activeCell] ? viewportIdAt(s.activeCell) : null))
   const links = useSettings((s) => s.links)
+  const unlinkedCells = useViewer((s) => s.unlinkedCells)
+  const syncLocked = useViewer((s) => s.syncLocked)
   const scaleBar = useSettings((s) => s.display.scaleBar)
 
   useEffect(() => {
@@ -138,9 +223,8 @@ export function useCornerstoneBridge() {
   // viewports may have (re)mounted: new series, layout or maximize changes.
   useEffect(() => {
     if (!ready) return
-    const source = mode === 'grid' ? (setActiveSource(activeViewportId) ?? null) : null
-    setReferenceLines(links.referenceLines ? source : null)
-  }, [ready, mode, links.referenceLines, activeViewportId, cells, layout, maximizedCell])
+    if (mode === 'grid') setActiveSource(activeViewportId)
+  }, [ready, mode, activeViewportId, cells, layout, maximizedCell, unlinkedCells])
 
   useEffect(() => {
     if (mode === 'mpr') applySlab(slab.mode, slab.thickness)
@@ -153,9 +237,34 @@ export function useCornerstoneBridge() {
 
   useEffect(() => {
     if (!ready) return
-    setSliceSync(links.sliceSync)
     setVoiSync(links.voiSync)
-  }, [ready, links.sliceSync, links.voiSync])
+    setZoomPanSync(links.zoomPanSync)
+  }, [ready, links.voiSync, links.zoomPanSync])
+
+  // Locking records the offsets at that moment; a new study or layout ends the lock.
+  useEffect(() => {
+    if (!ready || !syncLocked) return
+    // Viewports that were just given a series may still be loading it: try for a few seconds.
+    let tries = 0
+    let timer = 0
+    const attempt = () => {
+      if (lockSync(viewportIdAt(useViewer.getState().activeCell)) > 0) {
+        // A lock is a kind of slice sync.
+        if (!useSettings.getState().links.sliceSync) useSettings.getState().toggleLink('sliceSync')
+        return
+      }
+      if (++tries < 20) timer = window.setTimeout(attempt, 300)
+      else {
+        useViewer.setState({ syncLocked: false })
+        notify(t('sync.lockNothing'), 'info')
+      }
+    }
+    attempt()
+    return () => {
+      window.clearTimeout(timer)
+      unlockSync()
+    }
+  }, [ready, syncLocked, cells, layout])
 }
 
 /**

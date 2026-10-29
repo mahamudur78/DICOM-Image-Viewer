@@ -20,6 +20,7 @@ const TOOL_KEYS: Record<string, string> = {
   freehand: 'n',
   bidirectional: 'j',
   arrow: 'u',
+  cursor3d: 'k',
 }
 
 export const DEFAULT_KEYMAP: Record<string, string[]> = {

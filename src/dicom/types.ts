@@ -1,3 +1,5 @@
+import type { PlaneName } from '../comparison/planes'
+
 export interface ImageEntry {
   /** Cornerstone image id; empty for non-image series (video, pdf, sr). */
   imageId: string
@@ -32,6 +34,10 @@ export interface Series {
   hasOrientation: boolean
   /** Scout / localizer / topogram, shown first by the hanging protocol. */
   isLocalizer: boolean
+  /** Anatomical plane of the (first) image, for matching series across studies. */
+  plane?: PlaneName
+  /** Body Part Examined (0018,0015), upper case, or empty. */
+  bodyPart?: string
   /** Cine frame rate from the DICOM header (frames per second), or null. */
   frameRate: number | null
   /** Per-frame display durations in ms (Frame Time Vector), or null. */

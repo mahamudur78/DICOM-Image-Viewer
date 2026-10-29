@@ -11,6 +11,8 @@ import {
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import { resizeViewports } from '../cornerstone/viewer'
 import { MPR_VR_VIEWPORT_ID } from '../cornerstone/constants'
+import { crosshairCenter } from '../cornerstone/mpr'
+import { useCursor3D } from '../comparison/cursor3d'
 import type { DisplaySet } from '../dicom/types'
 import { setMprViewportId, useViewer } from '../store/viewerStore'
 import { useContextMenuTrigger } from './contextMenuTrigger'
@@ -109,6 +111,11 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
         slab: viewport.getSlabThickness(),
         markers: getOrientationMarkers(viewport),
       })
+      // "MPR + 3D": the 3D view marks where the three planes cross.
+      if (useViewer.getState().mprWith3d) {
+        const center = crosshairCenter()
+        if (center) useCursor3D.setState({ mprCenter: center })
+      }
     }
     const events = [Enums.Events.CAMERA_MODIFIED, Enums.Events.VOI_MODIFIED, Enums.Events.VOLUME_NEW_IMAGE]
     for (const event of events) element.addEventListener(event, update)

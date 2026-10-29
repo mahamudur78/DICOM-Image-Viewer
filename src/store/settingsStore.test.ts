@@ -12,8 +12,15 @@ describe('migrateSettings', () => {
     expect(migrateSettings({ language: 'bn', links: { sliceSync: true, voiSync: 'yes' } })).toEqual({
       ...DEFAULT_SETTINGS,
       language: 'bn',
-      links: { referenceLines: true, sliceSync: true, voiSync: false },
+      links: { ...DEFAULT_SETTINGS.links, sliceSync: true },
     })
+  })
+
+  it('keeps valid hanging rules (version 3)', () => {
+    const rule = { id: 'r', name: 'Mine', modality: 'CT', layout: { rows: 1, cols: 2 }, cells: [{}, { prior: true }] }
+    const migrated = migrateSettings({ hangingRules: [rule, { id: 'x' }, 'junk'] })
+    expect(migrated.hangingRules).toEqual([rule])
+    expect(migrated.links.zoomPanSync).toBe(false)
   })
 
   it('keeps valid presets and display choices, drops broken ones', () => {

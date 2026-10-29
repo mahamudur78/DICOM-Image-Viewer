@@ -40,6 +40,12 @@ import { useSettings, type DisplaySettings, type LinkSettings } from '../store/s
 import { changeMode, resetTargetViewport } from '../store/viewerActions'
 import { videoControllers } from '../video/videoControllers'
 import { redactionPolygons } from '../measurements/manage'
+import { openSeriesInNewWindow } from '../comparison/multiWindow'
+import { clearCursor3D, useCursor3D } from '../comparison/cursor3d'
+import { findPriorMatch } from '../comparison/priors'
+import { filterCandidates } from '../dicom/collectFiles'
+import { addFiles, compareWithPrior, reapplyHanging, saveHangingRule } from '../store/viewerActions'
+import { manageHangingRules } from '../dialogs/dialogStore'
 import { DEFAULT_KEYMAP } from './keymap'
 import { measureCommands } from './measureCommands'
 import {
@@ -50,6 +56,9 @@ import {
   setDistractionFree,
   setLayout,
   setSeriesSort,
+  setSyncLocked,
+  isCellLinked,
+  toggleCellLink,
   togglePanel,
   toggleMprWith3d,
   useViewer,
@@ -82,6 +91,7 @@ export type CommandGroup =
   | 'link'
   | 'panel'
   | 'measure'
+  | 'compare'
 
 export interface Command {
   id: string
@@ -130,6 +140,7 @@ const TOOLS: { tool: PrimaryTool; icon?: string }[] = [
   { tool: 'zoom', icon: '🔍' },
   { tool: 'magnify', icon: '⊕' },
   { tool: 'crosshairs', icon: '✛' },
+  { tool: 'cursor3d', icon: '✣' },
   { tool: 'length', icon: '📏' },
   { tool: 'angle', icon: '∠' },
   { tool: 'ellipse', icon: '◯' },
@@ -636,21 +647,47 @@ const layoutCommands: Command[] = LAYOUTS.map((layout) => ({
   run: () => setLayout(layout),
 }))
 
-const LINKS: { key: keyof LinkSettings; icon: string }[] = [
+/** Link toggles; the reference line options without an icon are in the View menu. */
+const LINKS: { key: keyof LinkSettings; icon?: string }[] = [
   { key: 'referenceLines', icon: 'REF' },
   { key: 'sliceSync', icon: 'SYNC' },
   { key: 'voiSync', icon: 'W/L' },
+  { key: 'zoomPanSync', icon: 'Z/P' },
+  { key: 'cineSync', icon: 'CINE' },
+  { key: 'referenceLinesAll' },
+  { key: 'referenceLinesEnds' },
 ]
 
-const linkCommands: Command[] = LINKS.map(({ key, icon }) => ({
-  id: `link.${key}`,
-  group: 'link',
-  label: `commands.${key}`,
-  icon,
-  isAvailable: isGrid,
-  isActive: (ctx) => ctx.links[key],
-  run: () => useSettings.getState().toggleLink(key),
-}))
+const linkCommands: Command[] = [
+  ...LINKS.map(
+    ({ key, icon }): Command => ({
+      id: `link.${key}`,
+      group: 'link',
+      label: `commands.${key}`,
+      icon,
+      isAvailable: isGrid,
+      isActive: (ctx) => ctx.links[key],
+      run: () => useSettings.getState().toggleLink(key),
+    }),
+  ),
+  {
+    id: 'link.lock',
+    group: 'link',
+    label: 'commands.syncLock',
+    icon: '🔒',
+    isAvailable: isGrid,
+    isActive: (ctx) => ctx.state.syncLocked,
+    run: (ctx) => setSyncLocked(!ctx.state.syncLocked),
+  },
+  {
+    id: 'link.cell',
+    group: 'link',
+    label: 'commands.cellLinked',
+    isAvailable: (ctx) => isGrid(ctx) && ctx.state.cells[ctx.state.activeCell] !== null,
+    isActive: (ctx) => isCellLinked(ctx.state, ctx.state.activeCell),
+    run: (ctx) => toggleCellLink(ctx.state.activeCell),
+  },
+]
 
 const panelCommands: Command[] = [
   {
@@ -661,6 +698,72 @@ const panelCommands: Command[] = [
     isActive: (ctx) => ctx.state.panel === 'tags',
     run: () => togglePanel('tags'),
   },
+]
+
+/** Lets the user pick files or a folder; resolves with them (empty when cancelled). */
+function pickFiles(folder: boolean) {
+  return new Promise<File[]>((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    if (folder) input.webkitdirectory = true
+    input.addEventListener('change', () => resolve([...(input.files ?? [])]))
+    input.addEventListener('cancel', () => resolve([]))
+    input.click()
+  })
+}
+
+const hasImageSeries = (ctx: CommandContext) => ctx.state.cells[ctx.state.activeCell]?.series.kind === 'image'
+
+const compareCommands: Command[] = [
+  {
+    id: 'compare.prior',
+    group: 'compare',
+    label: 'commands.comparePrior',
+    icon: 'PRIOR',
+    isAvailable: (ctx) => ctx.mode !== '3d',
+    isEnabled: (ctx) => {
+      const current = ctx.state.cells[ctx.state.activeCell]
+      return current?.series.kind === 'image' && findPriorMatch(ctx.state.studies, current) !== null
+    },
+    run: () => compareWithPrior(),
+  },
+  {
+    id: 'compare.addFiles',
+    group: 'compare',
+    label: 'commands.addFiles',
+    run: async () => {
+      const files = await pickFiles(false)
+      if (files.length) await addFiles(filterCandidates(files))
+    },
+  },
+  {
+    id: 'compare.addFolder',
+    group: 'compare',
+    label: 'commands.addFolder',
+    run: async () => {
+      const files = await pickFiles(true)
+      if (files.length) await addFiles(filterCandidates(files))
+    },
+  },
+  {
+    id: 'compare.newWindow',
+    group: 'compare',
+    label: 'commands.newWindow',
+    isAvailable: isGrid,
+    isEnabled: hasImageSeries,
+    run: (ctx) => openSeriesInNewWindow(ctx.state.cells[ctx.state.activeCell]!),
+  },
+  {
+    id: 'compare.clearCursor',
+    group: 'compare',
+    label: 'commands.clearCursor3d',
+    isEnabled: () => useCursor3D.getState().cursor !== null,
+    run: () => clearCursor3D(),
+  },
+  { id: 'hanging.apply', group: 'compare', label: 'hanging.apply', isAvailable: isGrid, run: () => reapplyHanging() },
+  { id: 'hanging.save', group: 'compare', label: 'hanging.save', isAvailable: isGrid, run: () => void saveHangingRule() },
+  { id: 'hanging.manage', group: 'compare', label: 'hanging.manage', run: () => manageHangingRules() },
 ]
 
 const ALL_COMMANDS: Command[] = [
@@ -680,6 +783,7 @@ const ALL_COMMANDS: Command[] = [
   ...linkCommands,
   ...panelCommands,
   ...measureCommands,
+  ...compareCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

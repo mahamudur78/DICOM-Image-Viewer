@@ -18,6 +18,7 @@ export type DialogRequest =
   | { type: 'issues'; issues: LoadIssue[] }
   | { type: 'form'; title: string; fields: FormField[]; submit: string; resolve: (values: Record<string, string> | null) => void }
   | { type: 'presets'; modality: string; current: { width: number; center: number } | null }
+  | { type: 'hanging' }
 
 /** One modal dialog at a time; requests made while one is open wait in line. */
 export const useDialogs = create<{ queue: DialogRequest[] }>()(() => ({ queue: [] }))
@@ -41,3 +42,6 @@ export function askForm(title: string, fields: FormField[], submit: string) {
 /** The user's window presets for one modality: rename, reorder, delete, add the current window. */
 export const managePresets = (modality: string, current: { width: number; center: number } | null) =>
   push({ type: 'presets', modality, current })
+
+/** The user's hanging protocols (and the built-in ones): list, delete. */
+export const manageHangingRules = () => push({ type: 'hanging' })

@@ -35,6 +35,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/commands/` | Every user action; the toolbar, keyboard shortcuts and context menu are built from it |
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
+| `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
 | `src/measurements/` | Measurement tools, their values (calibration, statistics), groups, panel actions, JSON/CSV |
 | `src/components/`, `src/panels/` | React UI; side panels are registered in `src/panels/panels.ts` |
 | `src/notifications/` | Toasts and error boundaries |
@@ -80,9 +81,14 @@ separate chunk that starts downloading right after the first render.
   pencil and redaction boxes (also black in PNG exports). Also on MPR planes
 - Calibration: Pixel Spacing, detector spacing corrected by the magnification factor (ERMF),
   ultrasound regions, or a line of known length; values in mm or cm, with the source shown
+- Comparison: add files to an open study, "Compare with prior" (matching series side by side, slices
+  locked together across frames of reference), hanging protocols (built-in and your own), sync of
+  slices, window/level, zoom/pan and cine for the linked viewports, a 3D cursor (Shift+click) that
+  takes every viewport — and MPR — to a point, reference lines of the active or every viewport with
+  the first and last slice, series that keep their view, and a series in its own browser window
 - Measurements panel: jump to the image, label, colour, hide, delete (image / series / all), undo
   and redo, copy onto another slice, copy values, CSV export, save and load as JSON
 
-Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `X` measurements panel · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
+Keyboard: `↑/↓` slice · `Home`/`End` first/last · `Space` play/pause · `[` `]` slower/faster · `W G P Z M L A E B` tools, `Q` rectangle, `Y` polygon, `N` freehand, `J` bidirectional, `U` arrow (`C` crosshairs in MPR, `O` rotate / `S` shift in 3D) · `K` 3D cursor (or Shift+click) · `X` measurements panel · `Delete` selected measurement · `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) undo / redo · `1`–`9` windows (`0` the image's own) · `I` invert · `R` reset · `H` hide patient · `V` DICOM overlays · `F` full screen · `D` images only (`Esc` back) · `T` tags
 
 Not for diagnostic use.

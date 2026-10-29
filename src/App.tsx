@@ -7,6 +7,7 @@ import { notify } from './notifications/toastStore'
 import { Toasts } from './notifications/Toasts'
 import { loadRuntime, startViewer } from './runtime'
 import { useViewer } from './store/viewerStore'
+import { onWindowMessage, postWindowMessage, secondaryWindowId } from './app/windowChannel'
 
 const Workspace = lazy(() => loadRuntime().then((m) => ({ default: m.Workspace })))
 
@@ -37,6 +38,30 @@ export default function App() {
       .then(() => useViewer.setState({ ready: true }))
       .catch((error: unknown) => notify(t('messages.startFailed', { error: String(error) }), 'error'))
   }, [t])
+
+  // A window opened for one series asks the main window for its files.
+  useEffect(() => {
+    if (!secondaryWindowId) return
+    const windowId = secondaryWindowId
+    let received = false
+    const stop = onWindowMessage(async (message) => {
+      if (message.type !== 'files' || message.windowId !== windowId || received) return
+      received = true
+      await openFiles(message.files.map((file) => ({ file, path: file.name })))
+      ;(await loadRuntime()).showOnlySeries(message.seriesId)
+    })
+    let tries = 0
+    const hello = () => {
+      if (received) return
+      postWindowMessage({ type: 'hello', windowId })
+      if (++tries < 10) timer = window.setTimeout(hello, 1000)
+    }
+    let timer = window.setTimeout(hello, 0)
+    return () => {
+      stop()
+      window.clearTimeout(timer)
+    }
+  }, [])
 
   const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault()
@@ -74,7 +99,11 @@ export default function App() {
           </Suspense>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <Welcome onFiles={openFiles} />
+            {secondaryWindowId && !loading ? (
+              <p className="p-8 text-center text-slate-400">{t('windows.waiting')}</p>
+            ) : (
+              <Welcome onFiles={openFiles} />
+            )}
           </div>
         )}
 

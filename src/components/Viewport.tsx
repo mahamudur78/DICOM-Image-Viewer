@@ -2,6 +2,10 @@ import { Enums } from '@cornerstonejs/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { applyModalityDefaults } from '../cornerstone/display'
+import { broadcastVoi } from '../comparison/multiWindow'
+import { syncFromViewport } from '../cornerstone/sync'
+import { viewportChanged } from '../cornerstone/viewportChanges'
+import { restoreViewState, saveViewState } from '../cornerstone/viewState'
 import { DOUBLE_CLICK_TOOLS } from '../cornerstone/tools'
 import { getOrientationMarkers, type OrientationMarkers } from '../cornerstone/orientation'
 import {
@@ -17,8 +21,9 @@ import type { DisplaySet } from '../dicom/types'
 import { notify } from '../notifications/toastStore'
 import { useSettings } from '../store/settingsStore'
 import { filterElementId, useViewportDisplay } from '../store/viewportDisplayStore'
-import { useViewer } from '../store/viewerStore'
+import { cellOfViewport, useViewer } from '../store/viewerStore'
 import { CineControls } from './CineControls'
+import { ComparisonLayer } from './ComparisonLayer'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useCinePlayback } from './useCinePlayback'
@@ -70,6 +75,7 @@ export function Viewport({
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const display = useSettings((s) => s.display)
   const filter = useViewportDisplay((s) => s.filters[viewportId])
+  const unlinked = useViewer((s) => s.unlinkedCells.includes(cellOfViewport(viewportId)))
   const reading = usePixelValue(viewportId, element, display.pixelValue && display.overlayText)
   const onIndexChangeRef = useRef(onIndexChange)
   const seriesRef = useRef(series)
@@ -88,12 +94,26 @@ export function Viewport({
     const element = elementRef.current!
     mountViewport(viewportId, element)
 
+    let shownIndex = -1
+    // Window changes on the same image are the user's, and other windows follow them.
+    let lastVoi: { imageId: string; lower: number; upper: number } | null = null
     const update = () => {
       const viewport = getViewport(viewportId)
       if (!viewport) return
       const voi = viewport.getProperties().voiRange
+      const imageId = viewport.getCurrentImageId()
+      if (voi && imageId) {
+        const changed = lastVoi?.imageId === imageId && (lastVoi.lower !== voi.lower || lastVoi.upper !== voi.upper)
+        lastVoi = { imageId, lower: voi.lower, upper: voi.upper }
+        if (changed && useViewer.getState().activeCell === cellOfViewport(viewportId)) broadcastVoi(voi.lower, voi.upper)
+      }
       const image = viewport.getCornerstoneImage()
       const index = viewport.getCurrentImageIdIndex()
+      if (index !== shownIndex) {
+        shownIndex = index
+        syncFromViewport(viewportId)
+      }
+      viewportChanged()
       rememberIndex(viewportId, seriesRef.current.id, index)
       onIndexChangeRef.current(index)
       setOverlay({
@@ -115,6 +135,7 @@ export function Viewport({
     return () => {
       resizeObserver.disconnect()
       for (const event of events) element.removeEventListener(event, update)
+      saveViewState(viewportId, seriesRef.current.id, seriesRef.current.images[0]?.imageId)
       unmountViewport(viewportId)
     }
   }, [viewportId])
@@ -126,7 +147,11 @@ export function Viewport({
       series.id,
       series.images.map((image) => image.imageId),
     )
-      .then(() => !cancelled && applyModalityDefaults(viewportId, series.modality))
+      .then(() => {
+        if (cancelled) return
+        applyModalityDefaults(viewportId, series.modality)
+        restoreViewState(viewportId, series.id)
+      })
       .catch((error: unknown) => {
         if (!cancelled) notify(t('messages.displayFailed', { error: describeError(error) }), 'error')
       })
@@ -135,6 +160,7 @@ export function Viewport({
       })
     return () => {
       cancelled = true
+      saveViewState(viewportId, series.id, series.images[0]?.imageId)
     }
   }, [viewportId, series, t])
 
@@ -173,6 +199,12 @@ export function Viewport({
         className="absolute inset-0"
       />
       {display.dicomOverlays && <DicomOverlayLayer viewportId={viewportId} element={element} />}
+      {!loading && <ComparisonLayer viewportId={viewportId} />}
+      {unlinked && (
+        <div className="pointer-events-none absolute left-1/2 top-7 -translate-x-1/2 rounded bg-slate-900/70 px-1.5 text-[10px] font-semibold text-amber-300">
+          {t('sync.unlinked')}
+        </div>
+      )}
 
       {display.overlayText && (
       <div data-testid="overlay-text" className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">

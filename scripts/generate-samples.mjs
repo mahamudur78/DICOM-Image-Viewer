@@ -16,6 +16,9 @@
 //               the first pixel holds the slice's label (100, 200, …) so tests can tell them apart
 //   measure/    DX with Imager Pixel Spacing and magnification (ERMF), ultrasound with a
 //               calibrated region; both hold a 40 × 40 pixel square of value 1000 on 100
+//   prior/      one patient, two CT studies a year apart (current/ and prior/), 20 axial
+//               slices each, in different frames of reference with positions 1000 mm apart;
+//               the first pixel of each slice is its instance number × 10
 //
 // Usage: node scripts/generate-samples.mjs <output-dir>
 import { execFileSync } from 'node:child_process'
@@ -34,7 +37,7 @@ import {
 } from './dicom-writer.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '12'
+export const SAMPLES_VERSION = '13'
 
 const root = process.argv[2]
 if (!root) {
@@ -928,6 +931,52 @@ if (hasFfmpeg) {
       element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
     ],
   })
+}
+
+// --- prior comparison: the same patient a year apart ------------------------------
+{
+  const studies = [
+    { folder: 'current', date: '20260110', uid: `${ROOT}.17`, z0: 0 },
+    { folder: 'prior', date: '20250110', uid: `${ROOT}.18`, z0: 1000 },
+  ]
+  for (const { folder, date, uid, z0 } of studies) {
+    outDir = dir(join('prior', folder))
+    for (let n = 1; n <= 20; n++) {
+      const size = 32
+      // A disc that grows towards the middle slices, so slices look different.
+      const radius = 4 + 10 * Math.sin((Math.PI * n) / 21)
+      const pixels = Array.from({ length: size * size }, (_, i) => {
+        if (i === 0) return n * 10
+        const [x, y] = [i % size, Math.floor(i / size)]
+        return (x - 16) ** 2 + (y - 16) ** 2 < radius ** 2 ? 1100 : 1000
+      })
+      writeDicomFile(join(outDir, `slice_${String(n).padStart(2, '0')}.dcm`), {
+        sopClassUID: '1.2.840.10008.5.1.4.1.1.2',
+        sopInstanceUID: `${uid}.1.${n}`,
+        elements: [
+          element(0x0010, 0x0010, 'PN', 'Sample^Prior'),
+          element(0x0010, 0x0020, 'LO', 'SAMPLE-PRIOR'),
+          element(0x0008, 0x0020, 'DA', date),
+          ...study(uid, 'Chest CT'),
+          element(0x0008, 0x0060, 'CS', 'CT'),
+          element(0x0008, 0x103e, 'LO', 'Chest axial 5mm'),
+          element(0x0018, 0x0015, 'CS', 'CHEST'),
+          element(0x0018, 0x0050, 'DS', 5),
+          element(0x0020, 0x000e, 'UI', `${uid}.100`),
+          element(0x0020, 0x0011, 'IS', 2),
+          element(0x0020, 0x0013, 'IS', n),
+          element(0x0020, 0x0032, 'DS', `-16\\-16\\${z0 + (n - 1) * 5}`),
+          element(0x0020, 0x0037, 'DS', '1\\0\\0\\0\\1\\0'),
+          element(0x0020, 0x0052, 'UI', `${uid}.200`),
+          ...grayscale16(size, size),
+          element(0x0028, 0x0030, 'DS', '1\\1'),
+          element(0x0028, 0x1052, 'DS', -1024),
+          element(0x0028, 0x1053, 'DS', 1),
+          element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
+        ],
+      })
+    }
+  }
 }
 
 writeFileSync(join(root, '.version'), SAMPLES_VERSION)

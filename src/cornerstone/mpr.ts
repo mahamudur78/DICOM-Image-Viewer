@@ -10,7 +10,7 @@ import {
   volumeLoader,
   type Types,
 } from '@cornerstonejs/core'
-import { ToolGroupManager } from '@cornerstonejs/tools'
+import { CrosshairsTool, ToolGroupManager } from '@cornerstonejs/tools'
 import { getImagePlane } from '../dicom/imagePlaneMetadata'
 import type { Series } from '../dicom/types'
 import { MPR_TOOL_GROUP_ID } from './tools'
@@ -183,4 +183,11 @@ export function setSlab(mode: SlabMode, thicknessMm: number) {
     }
     viewport.render()
   }
+}
+
+/** Where the crosshairs (the three MPR planes) cross, once they are drawn. */
+export function crosshairCenter(): number[] | null {
+  const crosshairs = ToolGroupManager.getToolGroup(MPR_TOOL_GROUP_ID)?.getToolInstance(CrosshairsTool.toolName) as { toolCenter?: number[] } | undefined
+  const center = crosshairs?.toolCenter
+  return center && center.some((v) => v !== 0) ? [...center] : null
 }

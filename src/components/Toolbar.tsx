@@ -35,7 +35,7 @@ const SLAB_MODES: { mode: SlabMode; label: string }[] = [
 const SELECT_CLASS = 'h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200 disabled:opacity-40'
 
 /** Groups whose icon is a short text label rather than a symbol. */
-const TEXT_ICON_GROUPS: CommandGroup[] = ['mode', 'link', 'panel']
+const TEXT_ICON_GROUPS: CommandGroup[] = ['mode', 'link', 'panel', 'compare']
 
 function CommandButton({ command, ctx }: { command: Command; ctx: CommandContext }) {
   const { t } = useTranslation()
@@ -210,6 +210,7 @@ const VIEW_MENU: MenuSection[] = [
       'display.orientationMarkers',
     ],
   },
+  { title: 'menus.referenceLines', commands: ['link.referenceLines', 'link.referenceLinesAll', 'link.referenceLinesEnds'] },
   { title: 'menus.screen', commands: ['display.fullscreen', 'display.distractionFree'] },
 ]
 
@@ -243,6 +244,17 @@ const MEASURE_MENU: MenuSection[] = [
     ],
   },
   { title: 'menus.export', commands: ['measure.copyValues', 'measure.exportCsv', 'measure.saveJson', 'measure.loadJson'] },
+]
+
+const COMPARE_MENU: MenuSection[] = [
+  { title: 'menus.compare', commands: ['compare.prior', 'compare.addFiles', 'compare.addFolder', 'compare.newWindow'] },
+  {
+    title: 'menus.links',
+    commands: ['link.sliceSync', 'link.voiSync', 'link.zoomPanSync', 'link.cineSync', 'link.lock', 'link.cell'],
+  },
+  { title: 'menus.referenceLines', commands: ['link.referenceLines', 'link.referenceLinesAll', 'link.referenceLinesEnds'] },
+  { title: 'menus.cursor3d', commands: ['tool.cursor3d', 'compare.clearCursor'] },
+  { title: 'menus.hanging', commands: ['hanging.apply', 'hanging.save', 'hanging.manage'] },
 ]
 
 /** Tools chosen from the Measure menu (the toolbar has buttons for the others). */
@@ -408,7 +420,9 @@ export function Toolbar() {
       show3dControls && <PresetSelect key="preset" modality={modality} />,
     ],
     mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],
-    mode === 'grid' ? groupButtons(['link'], ctx) : [],
+    mode === 'grid'
+      ? [...groupButtons(['link'], ctx), <MenuButton key="compare-menu" label="menus.compareMenu" icon={t('menus.compareShort')} sections={COMPARE_MENU} />]
+      : [],
     [
       ...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'),
       ...groupButtons(['panel'], ctx),

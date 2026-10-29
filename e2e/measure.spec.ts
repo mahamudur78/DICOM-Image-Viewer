@@ -121,6 +121,8 @@ test('manual calibration turns pixels into millimetres', async ({ page }) => {
 })
 
 test('every tool draws and reports its values', async ({ page, consoleErrors }) => {
+  // Twelve tools drawn with spaced-out clicks: slow when the suite runs in parallel.
+  test.slow()
   await openMeasure(page, 'dx_ermf.dcm')
 
   await chooseTool(page, /^Polygon/)

@@ -5,7 +5,6 @@ import {
   MagnifyTool,
   OrientationMarkerTool,
   PanTool,
-  ReferenceLinesTool,
   ScaleOverlayTool,
   StackScrollTool,
   TrackballRotateTool,
@@ -15,6 +14,8 @@ import {
   init as toolsInit,
 } from '@cornerstonejs/tools'
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
+import { Cursor3DTool } from '../comparison/cursor3d'
+import { installWindowSync } from '../comparison/multiWindow'
 import { installMeasurementEvents } from '../measurements/manage'
 import { MEASUREMENT_TOOLS } from '../measurements/tools'
 import { imageCacheBudget, registerVolumeLoaders } from './mpr'
@@ -40,8 +41,7 @@ export function initCornerstone(): Promise<void> {
     })
     registerImagePlaneProvider()
     toolsInit()
-    // Created before any thumbnail is rendered: ReferenceLinesTool looks up
-    // viewports on the first registered rendering engine.
+    // Created before any thumbnail is rendered, so the main engine is the first registered one.
     createRenderingEngine()
 
     for (const tool of [
@@ -53,16 +53,17 @@ export function initCornerstone(): Promise<void> {
       MagnifyTool,
       StackScrollTool,
       ...MEASUREMENT_TOOLS.map((tool) => tool.Class as Parameters<typeof addTool>[0]),
-      ReferenceLinesTool,
       CrosshairsTool,
       TrackballRotateTool,
       OrientationMarkerTool,
       VolumeShiftTool,
+      Cursor3DTool,
     ]) {
       addTool(tool)
     }
     createToolGroups()
     installMeasurementEvents()
+    installWindowSync()
     registerVolumeLoaders()
     createSynchronizers()
 

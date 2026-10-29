@@ -9,7 +9,7 @@ const VIEWPORT_MENU: MenuSection[] = [
   { commands: ['cine.toggle', 'cine.playAll'] },
   { title: 'sort.title', commands: ['sort.instance', 'sort.position', 'sort.time', 'sort.fileName'] },
   { title: 'menus.measurements', commands: ['measure.deleteSelected', 'measure.copy', 'measure.paste', 'measure.undo', 'measure.redo'] },
-  { commands: ['panel.tags', 'panel.measurements'] },
+  { commands: ['link.cell', 'panel.tags', 'panel.measurements'] },
 ]
 
 export function ContextMenu() {

@@ -23,6 +23,8 @@ export function getViewport(viewportId: string): Types.IStackViewport | undefine
  */
 const rememberedIndex = new Map<string, number>()
 const rememberKey = (viewportId: string, seriesUID: string) => `${viewportId}|${seriesUID}`
+/** The last index of a series in any viewport, for when it moves to another cell. */
+const seriesKey = (seriesUID: string) => `series|${seriesUID}`
 
 export function mountViewport(viewportId: string, element: HTMLDivElement) {
   createRenderingEngine().enableElement({
@@ -65,8 +67,11 @@ export async function showStack(viewportId: string, seriesUID: string, imageIds:
   const viewport = getViewport(viewportId)
   if (!viewport || imageIds.length === 0) return
   // Default to the middle of the stack, which is usually the most useful slice.
-  const index = rememberedIndex.get(rememberKey(viewportId, seriesUID)) ?? Math.floor(imageIds.length / 2)
+  const index = rememberedIndex.get(rememberKey(viewportId, seriesUID)) ?? rememberedIndex.get(seriesKey(seriesUID)) ?? Math.floor(imageIds.length / 2)
   await viewport.setStack(imageIds, Math.min(index, imageIds.length - 1))
+  // A new series starts fitted (setStack already resets window and invert); its
+  // last view, if any, is restored after.
+  viewport.resetCamera()
   ensureVisibleWindow(viewportId)
   viewport.render()
 }
@@ -85,6 +90,7 @@ export function ensureVisibleWindow(viewportId: string) {
 
 export function rememberIndex(viewportId: string, seriesUID: string, index: number) {
   rememberedIndex.set(rememberKey(viewportId, seriesUID), index)
+  rememberedIndex.set(seriesKey(seriesUID), index)
 }
 
 export function forgetRememberedIndexes() {

@@ -10,7 +10,7 @@ export interface MenuSection {
 }
 
 /** Groups whose commands are choices (one is active) or toggles, shown with a check mark. */
-const CHECKED_GROUPS: CommandGroup[] = ['tool', 'sort', 'colormap', 'filter', 'image', 'display', 'measure']
+const CHECKED_GROUPS: CommandGroup[] = ['tool', 'sort', 'colormap', 'filter', 'image', 'display', 'measure', 'link']
 
 const keyLabel = (key: string) =>
   key === ' ' ? 'Space' : key === 'escape' ? 'Esc' : key === 'delete' ? 'Del' : key.replace('ctrl+', 'Ctrl+').replace('shift+', 'Shift+').replace(/[a-z]$/, (c) => c.toUpperCase())
@@ -80,7 +80,7 @@ export function CommandMenu({ x, y, sections, label, onClose }: { x: number; y: 
           {section.commands.map((command) => {
             const key = command.keys?.[0]
             const checkable = CHECKED_GROUPS.includes(command.group) && command.isActive !== undefined
-            const radio = checkable && command.group !== 'image' && command.group !== 'display'
+            const radio = checkable && !['image', 'display', 'link'].includes(command.group)
             const checked = command.isActive?.(ctx) ?? false
             return (
               <button

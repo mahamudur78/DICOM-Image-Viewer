@@ -15,7 +15,6 @@ import {
   PlanarFreehandROITool,
   ProbeTool,
   RectangleROITool,
-  ReferenceLinesTool,
   ScaleOverlayTool,
   StackScrollTool,
   ToolGroupManager,
@@ -50,6 +49,9 @@ export const VR_TOOL_GROUP_ID = 'vr-tool-group'
 /** Name of the custom preset-shift tool (defined in volume3d.ts to keep vtk details there). */
 export const VOLUME_SHIFT_TOOL = 'VolumeShift'
 
+/** Name of the 3D cursor tool (defined in comparison/cursor3d.ts, which needs this module). */
+export const CURSOR_3D_TOOL = 'Cursor3D'
+
 /** Tools that can be bound to the left mouse button from the toolbar. */
 export const PRIMARY_TOOLS = {
   windowLevel: WindowLevelTool.toolName,
@@ -60,6 +62,7 @@ export const PRIMARY_TOOLS = {
   crosshairs: CrosshairsTool.toolName,
   rotate: TrackballRotateTool.toolName,
   shift: VOLUME_SHIFT_TOOL,
+  cursor3d: CURSOR_3D_TOOL,
   length: LengthTool.toolName,
   angle: AngleTool.toolName,
   ellipse: EllipticalROITool.toolName,
@@ -116,8 +119,8 @@ export const DOUBLE_CLICK_TOOLS: PrimaryTool[] = ['polygon', 'polyline', 'curve'
 
 /** Which toolbar tools exist in each view mode's tool group. */
 const GROUP_TOOLS: Record<string, PrimaryTool[]> = {
-  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', ...MEASUREMENTS, ...IMAGE_ONLY],
-  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', ...MEASUREMENTS],
+  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'cursor3d', ...MEASUREMENTS, ...IMAGE_ONLY],
+  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', 'cursor3d', ...MEASUREMENTS],
   [VR_TOOL_GROUP_ID]: ['rotate', 'shift', 'pan', 'zoom'],
 }
 
@@ -130,6 +133,10 @@ function setupToolGroup(id: string) {
   // Fixed bindings that work regardless of the selected toolbar tool.
   toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
   toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] })
+  // Shift+click places the 3D cursor whatever tool is selected.
+  if (tools.includes('cursor3d')) {
+    toolGroup.setToolActive(CURSOR_3D_TOOL, { bindings: [{ mouseButton: MouseBindings.Primary, modifierKey: ToolEnums.KeyboardBindings.Shift }] })
+  }
 
   // Measurements stay visible and editable when another tool is selected.
   for (const tool of tools) {
@@ -145,7 +152,6 @@ export function createToolGroups() {
     toolGroup.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
   }
   const main = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)!
-  main.addTool(ReferenceLinesTool.toolName)
   main.addTool(ScaleOverlayTool.toolName, { scaleLocation: 'bottom' })
   // PET windows in SUV are only a few units wide.
   for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
@@ -172,21 +178,6 @@ export function toolsForMode(mode: ViewMode): PrimaryTool[] {
 
 /** The tool selected when a mode opens. */
 export const DEFAULT_TOOL: Record<ViewMode, PrimaryTool> = { grid: 'windowLevel', mpr: 'crosshairs', '3d': 'rotate' }
-
-/**
- * Draws the plane of the source viewport (the active one) as a line on every
- * other viewport that intersects it, e.g. the axial slice position on a scout.
- */
-export function setReferenceLines(sourceViewportId: string | null) {
-  const toolGroup = ToolGroupManager.getToolGroup(TOOL_GROUP_ID)
-  if (!toolGroup) return
-  if (!sourceViewportId) {
-    toolGroup.setToolDisabled(ReferenceLinesTool.toolName)
-    return
-  }
-  toolGroup.setToolConfiguration(ReferenceLinesTool.toolName, { sourceViewportId })
-  toolGroup.setToolEnabled(ReferenceLinesTool.toolName)
-}
 
 /**
  * Binds the tool to the left mouse button in the current mode's tool group.

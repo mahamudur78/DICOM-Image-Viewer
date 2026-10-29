@@ -63,7 +63,8 @@ export function recordFrameLuts(imageId: string, frame: FrameInfo) {
   if (voi || rescale) frameLuts.set(imageId, { voi, rescale })
 }
 
-export function getImagePlane(imageId: string) {
+export function getImagePlane(imageId: string | undefined) {
+  if (!imageId) return undefined
   return planes.get(imageId)
 }
 
