@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৫ সম্পন্ন, ফেজ ৬ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৬ সম্পন্ন, ফেজ ৭ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -219,31 +219,31 @@
 ## ফেজ ৬: উন্নত MPR ও 3D
 
 **MPR**
-- [ ] Oblique MPR: crosshair-এর rotation handle চালু ও পরীক্ষা; plane রিসেট
-- [ ] Double-oblique
-- [ ] Slab-এর বেধ crosshair থেকে টেনে বদলানো
-- [ ] MPR-এ W/L preset, invert, PNG (আছে কিনা যাচাই), মাপজোখ
-- [ ] MPR থেকে নতুন সিরিজ তৈরি (নির্দিষ্ট দূরত্বে slice → stack, export করা যায়)
-- [ ] **Curved MPR (CPR):** পথ বরাবর বিন্দু দেওয়া → stretched / straightened ভিউ; ডেন্টাল panoramic
-- [ ] বড় volume-এ দ্রুত MPR (progressive load, কম রেজোলিউশনে আগে)
+- [x] Oblique MPR: crosshair-এর rotation handle চালু ও পরীক্ষা; plane রিসেট
+- [x] Double-oblique
+- [x] Slab-এর বেধ crosshair থেকে টেনে বদলানো
+- [x] MPR-এ W/L preset, invert, PNG (আছে কিনা যাচাই), মাপজোখ
+- [x] MPR থেকে নতুন সিরিজ তৈরি (নির্দিষ্ট দূরত্বে slice → stack, export করা যায়)
+- [x] **Curved MPR (CPR):** পথ বরাবর বিন্দু দেওয়া → stretched / straightened ভিউ; ডেন্টাল panoramic
+- [x] বড় volume-এ দ্রুত MPR (progressive load, কম রেজোলিউশনে আগে)
 
 **3D**
-- [ ] **ঘোরানোর সময় sample distance বাড়ানো** ([3D_VR_PLAN.md](3D_VR_PLAN.md)-এ বাকি কাজ) আর progressive rendering
-- [ ] **Clipping box / crop** (ছয় দিক থেকে কাটা)
-- [ ] **Clipping plane** (যে কোনো দিকে)
-- [ ] **Scalpel:** মাউস দিয়ে আঁকা অংশ ভেতরে বা বাইরে কেটে বাদ দেওয়া; undo
-- [ ] **3D-তে মাপা:** surface-এ দুই বিন্দুর দূরত্ব
-- [ ] **Transfer function editor:** রং আর opacity-র বিন্দু হাতে বদলানো, নিজের preset সেভ
-- [ ] আলো/shading নিয়ন্ত্রণ (ambient, diffuse, specular)
-- [ ] **3D snapshot:** camera + preset + clipping সেভ ও ফেরত
-- [ ] **ঘোরানোর মুভি** (৩৬০°, অক্ষ বাছাই) আর **snapshot-ভিত্তিক ভিডিও** (snapshot-গুলোর মধ্যে মসৃণ পরিবর্তন) → MP4
-- [ ] **Surface rendering** (iso-surface, threshold বাছাই)
-- [ ] **STL export** (marching cubes; mesh সরল করা; mm-এ মাপ ঠিক)
-- [ ] OBJ/PLY export (ঐচ্ছিক)
-- [ ] **Virtual endoscopy** (ভেতর থেকে ক্যামেরা; পথ ধরে fly-through)
-- [ ] 3D-তে MIP/MinIP রেন্ডারিং (VR-এর পাশাপাশি)
-- [ ] 3D প্রিন্ট বা PNG-তে উচ্চ রেজোলিউশন
-- [ ] Definition of Done পূরণ
+- [x] **ঘোরানোর সময় sample distance বাড়ানো** ([3D_VR_PLAN.md](3D_VR_PLAN.md)-এ বাকি কাজ) আর progressive rendering
+- [x] **Clipping box / crop** (ছয় দিক থেকে কাটা)
+- [x] **Clipping plane** (যে কোনো দিকে)
+- [x] **Scalpel:** মাউস দিয়ে আঁকা অংশ ভেতরে বা বাইরে কেটে বাদ দেওয়া; undo
+- [x] **3D-তে মাপা:** surface-এ দুই বিন্দুর দূরত্ব
+- [x] **Transfer function editor:** রং আর opacity-র বিন্দু হাতে বদলানো, নিজের preset সেভ
+- [x] আলো/shading নিয়ন্ত্রণ (ambient, diffuse, specular)
+- [x] **3D snapshot:** camera + preset + clipping সেভ ও ফেরত
+- [x] **ঘোরানোর মুভি** (৩৬০°, অক্ষ বাছাই) আর **snapshot-ভিত্তিক ভিডিও** (snapshot-গুলোর মধ্যে মসৃণ পরিবর্তন) → MP4
+- [x] **Surface rendering** (iso-surface, threshold বাছাই)
+- [x] **STL export** (marching cubes; mesh সরল করা; mm-এ মাপ ঠিক)
+- [x] OBJ/PLY export (ঐচ্ছিক)
+- [x] **Virtual endoscopy** (ভেতর থেকে ক্যামেরা; পথ ধরে fly-through)
+- [x] 3D-তে MIP/MinIP রেন্ডারিং (VR-এর পাশাপাশি)
+- [x] 3D প্রিন্ট বা PNG-তে উচ্চ রেজোলিউশন
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_6_ADVANCED_MPR_3D_PLAN.md](PHASE_6_ADVANCED_MPR_3D_PLAN.md))
 
 ## ফেজ ৭: Fusion ও ফাংশনাল ইমেজিং
 

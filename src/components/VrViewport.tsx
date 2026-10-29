@@ -1,6 +1,8 @@
 import { Enums, getRenderingEngine } from '@cornerstonejs/core'
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useCursor3D } from '../comparison/cursor3d'
+import { installInteractiveQuality } from '../cornerstone/volume3dTools'
+import { VrOverlay } from './VrOverlay'
 import { MPR_VR_VIEWPORT_ID, RENDERING_ENGINE_ID } from '../cornerstone/constants'
 import { useTranslation } from 'react-i18next'
 import { resizeViewports } from '../cornerstone/viewer'
@@ -32,7 +34,9 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
     const resizeObserver = new ResizeObserver(() => resizeViewports())
     resizeObserver.observe(element)
     const unsubscribe = onShiftChange((id, value) => id === viewportId && setShift(value))
+    const stopQuality = installInteractiveQuality(viewportId, element)
     return () => {
+      stopQuality()
       unsubscribe()
       resizeObserver.disconnect()
       unmountVrViewport(viewportId)
@@ -78,6 +82,7 @@ export function VrViewport({ viewportId, volumeId, preset, displaySet, active, o
     >
       <div ref={elementRef} className="absolute inset-0" />
       {viewportId === MPR_VR_VIEWPORT_ID && <CenterMarker viewportId={viewportId} />}
+      {shownVolume && <VrOverlay viewportId={viewportId} />}
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[50%]">
           <div className="font-semibold text-sky-300">{t('viewport.vr')}</div>

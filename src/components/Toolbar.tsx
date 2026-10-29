@@ -257,6 +257,11 @@ const COMPARE_MENU: MenuSection[] = [
   { title: 'menus.hanging', commands: ['hanging.apply', 'hanging.save', 'hanging.manage'] },
 ]
 
+const REFORMAT_MENU: MenuSection[] = [
+  { title: 'menus.planes', commands: ['mpr.resetPlanes', 'mpr.newSeries'] },
+  { title: 'menus.cpr', commands: ['mpr.cprStart', 'mpr.cprUndo', 'mpr.cprMake', 'mpr.cprClear'] },
+]
+
 const EXPORT_MENU: MenuSection[] = [
   { title: 'menus.exportImages', commands: ['export.images', 'export.movie', 'export.copyImage', 'export.captureRegion', 'export.print'] },
   { title: 'menus.exportDicom', commands: ['export.originals.series', 'export.originals.study', 'export.originals.all', 'export.decompress', 'export.tagEdit'] },
@@ -423,6 +428,7 @@ export function Toolbar() {
     [
       ...groupButtons(['mode'], ctx),
       mode === 'mpr' && <SlabControls key="slab" />,
+      mode === 'mpr' && <MenuButton key="reformat-menu" label="menus.reformat" icon={t('menus.reformatShort')} sections={REFORMAT_MENU} />,
       show3dControls && <PresetSelect key="preset" modality={modality} />,
     ],
     mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],

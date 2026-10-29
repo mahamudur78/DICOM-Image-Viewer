@@ -36,6 +36,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
 | `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
+| `src/volume/` | Volume maths (sampling, oblique slices, curved reformat, ray picking, transfer functions, meshes), reformatted DICOM |
 | `src/export/` | Image, movie, print/PDF export (own BMP/TIFF/GIF/AVI/PDF encoders), anonymization, tag editing, conversion |
 | `src/measurements/` | Measurement tools, their values (calibration, statistics), groups, panel actions, JSON/CSV |
 | `src/components/`, `src/panels/` | React UI; side panels are registered in `src/panels/panels.ts` |
@@ -87,6 +88,12 @@ separate chunk that starts downloading right after the first render.
   slices, window/level, zoom/pan and cine for the linked viewports, a 3D cursor (Shift+click) that
   takes every viewport — and MPR — to a point, reference lines of the active or every viewport with
   the first and last slice, series that keep their view, and a series in its own browser window
+- Advanced MPR: oblique and double-oblique planes (crosshair rotation handles), slab by dragging,
+  reset planes, a new DICOM series along any view, curved reformat (CPR / dental panoramic) with slab
+- Advanced 3D: transfer function editor with your own presets, lighting, VR / MIP / MinIP, crop box
+  and clipping plane, scalpel (cut inside or outside, undo), distance between surface points,
+  snapshots, rotation and snapshot movies, iso-surfaces with STL / OBJ / PLY export, virtual
+  endoscopy with fly-through along a path, ×2 / ×4 images; coarser rendering while rotating
 - Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
   seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
   movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or

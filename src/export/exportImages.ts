@@ -198,41 +198,51 @@ export async function exportMovie(options: MovieOptions, onProgress: (p: Progres
   const count = displaySet.series.images.length
   const from = Math.max(1, options.from) - 1
   const to = Math.min(count, options.to) - 1
-  const total = to - from + 1
   const render = renderOptions({ ...options, format: 'png', quality: 1, scope: 'series' }, viewportId)
   const frames = stackFrames(viewportId, displaySet, from, to, options.native, render, signal)
-  const name = `${baseName({ displaySet, index: 0, count })}.${options.format}`
+  async function* canvases() {
+    for await (const { canvas } of frames) yield canvas
+  }
+  return encodeMovie(canvases(), options.format, options.fps, to - from + 1, `${baseName({ displaySet, index: 0, count })}.${options.format}`, onProgress)
+}
+
+/**
+ * Encodes rendered frames as a movie and downloads it: MP4 and WebM with
+ * WebCodecs (H.264 or VP9 / VP8), GIF and AVI with our own encoders.
+ */
+export async function encodeMovie(frames: AsyncIterable<HTMLCanvasElement>, format: MovieFormat, fps: number, total: number, name: string, onProgress: (p: Progress) => void) {
   let done = 0
   const step = () => onProgress({ done: ++done, total })
 
-  if (options.format === 'gif' || options.format === 'avi') {
+  if (format === 'gif' || format === 'avi') {
     const collected: HTMLCanvasElement[] = []
-    for await (const { canvas } of frames) {
-      collected.push(options.format === 'gif' ? limitSize(canvas, 1024) : evenCanvas(canvas))
+    for await (const canvas of frames) {
+      collected.push(format === 'gif' ? limitSize(canvas, 1024) : evenCanvas(canvas))
       step()
     }
+    if (collected.length === 0) return 0
     const { width, height } = collected[0]
     const bytes =
-      options.format === 'gif'
-        ? encodeGif(collected.map(pixels), 1000 / options.fps)
-        : encodeAvi(await Promise.all(collected.map(async (c) => new Uint8Array(await (await encodeCanvas(c, 'jpeg', 0.9)).arrayBuffer()))), width, height, options.fps)
-    await saveFiles([{ name, data: new Blob([bytes], { type: options.format === 'gif' ? 'image/gif' : 'video/x-msvideo' }) }], name)
-    return total
+      format === 'gif'
+        ? encodeGif(collected.map(pixels), 1000 / fps)
+        : encodeAvi(await Promise.all(collected.map(async (c) => new Uint8Array(await (await encodeCanvas(c, 'jpeg', 0.9)).arrayBuffer()))), width, height, fps)
+    await saveFiles([{ name, data: new Blob([bytes], { type: format === 'gif' ? 'image/gif' : 'video/x-msvideo' }) }], name)
+    return collected.length
   }
 
   // MP4 and WebM: WebCodecs encodes, a muxer writes the container.
   let encoder: VideoEncoder | null = null
   let finish: () => Blob = () => new Blob()
   let index = 0
-  for await (const { canvas: raw } of frames) {
+  for await (const raw of frames) {
     const canvas = evenCanvas(raw)
     if (!encoder) {
       const { width, height } = canvas
-      const codec = await videoCodec(options.format === 'mp4' ? MP4_CODECS : WEBM_CODECS, width, height)
-      if (!codec) throw new MovieUnsupported(options.format)
-      if (options.format === 'mp4') {
+      const codec = await videoCodec(format === 'mp4' ? MP4_CODECS : WEBM_CODECS, width, height)
+      if (!codec) throw new MovieUnsupported(format)
+      if (format === 'mp4') {
         const { Muxer, ArrayBufferTarget } = await import('mp4-muxer')
-        const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: codec.startsWith('avc') ? 'avc' : 'vp9', width, height, frameRate: options.fps }, fastStart: 'in-memory' })
+        const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: codec.startsWith('avc') ? 'avc' : 'vp9', width, height, frameRate: fps }, fastStart: 'in-memory' })
         encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => console.error(e) })
         finish = () => {
           muxer.finalize()
@@ -240,16 +250,16 @@ export async function exportMovie(options: MovieOptions, onProgress: (p: Progres
         }
       } else {
         const { Muxer, ArrayBufferTarget } = await import('webm-muxer')
-        const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: codec === 'vp8' ? 'V_VP8' : 'V_VP9', width, height, frameRate: options.fps } })
+        const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: codec === 'vp8' ? 'V_VP8' : 'V_VP9', width, height, frameRate: fps } })
         encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => console.error(e) })
         finish = () => {
           muxer.finalize()
           return new Blob([muxer.target.buffer], { type: 'video/webm' })
         }
       }
-      encoder.configure({ codec, width, height, bitrate: 4_000_000, framerate: options.fps })
+      encoder.configure({ codec, width, height, bitrate: 4_000_000, framerate: fps })
     }
-    const frame = new VideoFrame(canvas, { timestamp: Math.round((index * 1_000_000) / options.fps), duration: Math.round(1_000_000 / options.fps) })
+    const frame = new VideoFrame(canvas, { timestamp: Math.round((index * 1_000_000) / fps), duration: Math.round(1_000_000 / fps) })
     encoder.encode(frame, { keyFrame: index % 30 === 0 })
     frame.close()
     index++
@@ -259,7 +269,7 @@ export async function exportMovie(options: MovieOptions, onProgress: (p: Progres
   await encoder.flush()
   encoder.close()
   await saveFiles([{ name, data: finish() }], name)
-  return total
+  return index
 }
 
 // --- images for print and PDF -------------------------------------------------------------

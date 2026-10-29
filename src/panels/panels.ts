@@ -15,6 +15,11 @@ export const PANELS: Record<PanelId, PanelDefinition> = {
     title: 'tags.title',
     component: lazy(() => import('../components/TagPanel').then((m) => ({ default: m.TagPanel }))),
   },
+  volume3d: {
+    id: 'volume3d',
+    title: 'vr.panelTitle',
+    component: lazy(() => import('../components/Volume3DPanel').then((m) => ({ default: m.Volume3DPanel }))),
+  },
   measurements: {
     id: 'measurements',
     title: 'measure.panelTitle',

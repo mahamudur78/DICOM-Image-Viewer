@@ -7,6 +7,8 @@ import {
   imageLoader,
   metaData,
   setVolumesForViewports,
+  utilities,
+  ProgressiveRetrieveImages,
   volumeLoader,
   type Types,
 } from '@cornerstonejs/core'
@@ -39,6 +41,9 @@ export function registerVolumeLoaders() {
   const loader = cornerstoneStreamingImageVolumeLoader as unknown as Types.VolumeLoaderFn
   volumeLoader.registerVolumeLoader(VOLUME_SCHEME, loader)
   volumeLoader.registerUnknownVolumeLoader(loader)
+  // Large volumes appear coarse first: every 4th slice loads early (neighbours
+  // stand in for the rest), then the gaps fill in.
+  utilities.imageRetrieveMetadataProvider.add('volume', ProgressiveRetrieveImages.interleavedRetrieveStages)
 }
 
 export function getMprViewport(viewportId: string): Types.IVolumeViewport | undefined {

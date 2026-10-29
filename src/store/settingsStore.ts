@@ -66,10 +66,12 @@ export interface Settings {
   pinnedTags: string[]
   /** Saved anonymization settings. */
   anonymizeTemplates: { name: string; options: Record<string, string | boolean> }[]
+  /** The user's own 3D transfer functions, in Cornerstone's preset string format. */
+  vrPresets: { name: string; scalarOpacity: string; colorTransfer: string }[]
 }
 
 export const SETTINGS_KEY = 'dicomlens-settings'
-export const SETTINGS_VERSION = 4
+export const SETTINGS_VERSION = 5
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
@@ -103,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exportPrefs: {},
   pinnedTags: [],
   anonymizeTemplates: [],
+  vrPresets: [],
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -160,6 +163,9 @@ export function migrateSettings(stored: unknown): Settings {
       ? Object.fromEntries(Object.entries(value.exportPrefs).filter(([, v]) => isObject(v)).map(([k, v]) => [k, pickPrimitives(v)]))
       : {},
     pinnedTags: Array.isArray(value.pinnedTags) ? value.pinnedTags.filter((t): t is string => typeof t === 'string') : [],
+    vrPresets: Array.isArray(value.vrPresets)
+      ? value.vrPresets.filter((p): p is Settings['vrPresets'][number] => isObject(p) && typeof p.name === 'string' && typeof p.scalarOpacity === 'string' && typeof p.colorTransfer === 'string')
+      : [],
     anonymizeTemplates: Array.isArray(value.anonymizeTemplates)
       ? value.anonymizeTemplates.filter((t): t is Settings['anonymizeTemplates'][number] => isObject(t) && typeof t.name === 'string' && isObject(t.options)).map((t) => ({ name: t.name, options: pickPrimitives(t.options) as Record<string, string | boolean> }))
       : [],
@@ -183,6 +189,8 @@ interface SettingsState extends Settings {
   togglePinnedTag: (tag: string) => void
   saveAnonymizeTemplate: (name: string, options: Record<string, string | boolean>) => void
   removeAnonymizeTemplate: (name: string) => void
+  saveVrPreset: (preset: Settings['vrPresets'][number]) => void
+  removeVrPreset: (name: string) => void
 }
 
 let presetCounter = 0
@@ -222,12 +230,14 @@ export const useSettings = create<SettingsState>()(
       saveAnonymizeTemplate: (name, options) =>
         set((state) => ({ anonymizeTemplates: [...state.anonymizeTemplates.filter((t) => t.name !== name), { name, options }] })),
       removeAnonymizeTemplate: (name) => set((state) => ({ anonymizeTemplates: state.anonymizeTemplates.filter((t) => t.name !== name) })),
+      saveVrPreset: (preset) => set((state) => ({ vrPresets: [...state.vrPresets.filter((p) => p.name !== preset.name), preset] })),
+      removeVrPreset: (name) => set((state) => ({ vrPresets: state.vrPresets.filter((p) => p.name !== name) })),
     }),
     {
       name: SETTINGS_KEY,
       version: SETTINGS_VERSION,
       storage: createJSONStorage(safeStorage),
-      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules, exportPrefs, pinnedTags, anonymizeTemplates }): Settings => ({
+      partialize: ({ language, links, display, presets, screenDpi, measureUnit, hangingRules, exportPrefs, pinnedTags, anonymizeTemplates, vrPresets }): Settings => ({
         language,
         links,
         display,
@@ -238,6 +248,7 @@ export const useSettings = create<SettingsState>()(
         exportPrefs,
         pinnedTags,
         anonymizeTemplates,
+        vrPresets,
       }),
       migrate: (stored) => migrateSettings(stored),
       merge: (stored, current) => ({ ...current, ...migrateSettings(stored) }),

@@ -20,6 +20,7 @@ export type DialogRequest =
   | { type: 'presets'; modality: string; current: { width: number; center: number } | null }
   | { type: 'hanging' }
   | { type: 'export'; kind: 'images' | 'movie' | 'print' | 'anonymize' | 'convert' | 'tagEdit' }
+  | { type: 'cpr' }
 
 /** One modal dialog at a time; requests made while one is open wait in line. */
 export const useDialogs = create<{ queue: DialogRequest[] }>()(() => ({ queue: [] }))
@@ -49,3 +50,6 @@ export const manageHangingRules = () => push({ type: 'hanging' })
 
 /** One of the export, print, anonymize, convert or tag-edit dialogs (loaded on first use). */
 export const openExportDialog = (kind: Extract<DialogRequest, { type: 'export' }>['kind']) => push({ type: 'export', kind })
+
+/** The curved reformat of the drawn path (loaded on first use). */
+export const openCprDialog = () => push({ type: 'cpr' })

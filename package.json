@@ -23,6 +23,7 @@
     "@cornerstonejs/core": "^5.13.2",
     "@cornerstonejs/dicom-image-loader": "^5.13.2",
     "@cornerstonejs/tools": "^5.13.2",
+    "@kitware/vtk.js": "36.4.1",
     "@zip.js/zip.js": "^2.24.0",
     "dcmjs": "0.52.0",
     "dicom-parser": "^1.8.21",

@@ -7,6 +7,7 @@ import { INPUT, Modal, PRIMARY, SECONDARY } from './Modal'
 
 const ExportDialog = lazy(() => import('../export/ExportDialogs'))
 const HangingRulesDialog = lazy(() => import('./HangingRulesDialog'))
+const CprDialog = lazy(() => import('../volume/CprDialog'))
 
 /** Renders the first queued dialog. */
 export function Dialogs() {
@@ -25,6 +26,12 @@ export function Dialogs() {
       return (
         <Suspense fallback={null}>
           <HangingRulesDialog />
+        </Suspense>
+      )
+    case 'cpr':
+      return (
+        <Suspense fallback={null}>
+          <CprDialog />
         </Suspense>
       )
     case 'export':

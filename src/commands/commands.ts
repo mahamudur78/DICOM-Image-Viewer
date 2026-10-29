@@ -48,6 +48,7 @@ import { addFiles, compareWithPrior, reapplyHanging, saveHangingRule } from '../
 import { manageHangingRules } from '../dialogs/dialogStore'
 import { DEFAULT_KEYMAP } from './keymap'
 import { exportCommands } from './exportCommands'
+import { reformatCommands } from './reformatCommands'
 import { measureCommands } from './measureCommands'
 import {
   selectMode,
@@ -94,6 +95,7 @@ export type CommandGroup =
   | 'measure'
   | 'compare'
   | 'export'
+  | 'reformat'
 
 export interface Command {
   id: string
@@ -787,6 +789,7 @@ const ALL_COMMANDS: Command[] = [
   ...measureCommands,
   ...compareCommands,
   ...exportCommands,
+  ...reformatCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

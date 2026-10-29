@@ -18,6 +18,7 @@ import { setMprViewportId, useViewer } from '../store/viewerStore'
 import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useVolume } from './useVolume'
 import { VolumeProgress } from './VolumeProgress'
+import { CprOverlay } from './CprOverlay'
 import { VrViewport } from './VrViewport'
 
 /** Axial, sagittal and coronal reconstructions of one series, optionally with a 3D cell (2×2). */
@@ -147,6 +148,7 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
       onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
+      <CprOverlay viewportId={viewportId} />
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[40%]">
           <div className="font-semibold text-sky-300">{t(label)}</div>
