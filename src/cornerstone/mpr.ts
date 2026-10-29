@@ -61,7 +61,7 @@ export function mprUnsupportedReason(series: Series): string | null {
   return null
 }
 
-const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.id}`
+export const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.id}`
 
 export function isVolumeCached(series: Series) {
   return !!cache.getVolume(volumeIdFor(series))

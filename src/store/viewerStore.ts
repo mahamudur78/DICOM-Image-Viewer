@@ -29,7 +29,7 @@ export interface Slab {
 }
 
 /** Side panels; later phases add measurements, segmentation, reports, … */
-export type PanelId = 'tags' | 'measurements' | 'volume3d' | 'fusion' | 'tic' | 'dsa'
+export type PanelId = 'tags' | 'measurements' | 'volume3d' | 'fusion' | 'tic' | 'dsa' | 'segment'
 
 /**
  * Session state of the viewer: what is loaded and how it is laid out.

@@ -57,6 +57,8 @@ function pickFile(accept: string) {
 
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
 
+const segmenting = (ctx: CommandContext) => ctx.state.activeTool === 'segment'
+
 export const measureCommands: Command[] = [
   {
     id: 'measure.deleteSelected',
@@ -91,8 +93,25 @@ export const measureCommands: Command[] = [
     isEnabled: hasMeasurements,
     run: () => deleteMeasurements(allMeasurements()),
   },
-  { id: 'measure.undo', group: 'measure', label: 'measure.undo', icon: '↶', isAvailable: isImageMode, isEnabled: canUndo, run: undo },
-  { id: 'measure.redo', group: 'measure', label: 'measure.redo', icon: '↷', isAvailable: isImageMode, isEnabled: canRedo, run: redo },
+  // With the segment tool selected, Ctrl+Z and Ctrl+Shift+Z undo and redo segmentation edits.
+  {
+    id: 'measure.undo',
+    group: 'measure',
+    label: 'measure.undo',
+    icon: '↶',
+    isAvailable: isImageMode,
+    isEnabled: (ctx) => segmenting(ctx) || canUndo(),
+    run: (ctx) => (segmenting(ctx) ? void import('../segmentation/session').then((m) => m.undo()) : undo()),
+  },
+  {
+    id: 'measure.redo',
+    group: 'measure',
+    label: 'measure.redo',
+    icon: '↷',
+    isAvailable: isImageMode,
+    isEnabled: (ctx) => segmenting(ctx) || canRedo(),
+    run: (ctx) => (segmenting(ctx) ? void import('../segmentation/session').then((m) => m.redo()) : redo()),
+  },
   {
     id: 'measure.copy',
     group: 'measure',

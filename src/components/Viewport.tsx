@@ -26,6 +26,7 @@ import { CineControls } from './CineControls'
 import { ComparisonLayer } from './ComparisonLayer'
 import { FusionLayer, ObjectLayers } from './FusionLayer'
 import { PresentationLayer } from './PresentationLayer'
+import { SegmentPreviewLayer } from './SegmentPreviewLayer'
 import { isKeyImage, originalId, useKeyImages } from '../objects/keyImages'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
@@ -207,6 +208,7 @@ export function Viewport({
       {!loading && <FusionLayer viewportId={viewportId} />}
       {!loading && <ObjectLayers viewportId={viewportId} seriesId={originalId(series)} />}
       {!loading && <PresentationLayer viewportId={viewportId} series={series} element={element} />}
+      <SegmentPreviewLayer viewportId={viewportId} elementRef={elementRef} />
       {isKey && (
         <div data-testid="key-image" className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 text-lg text-amber-300 [text-shadow:0_1px_2px_#000]" title={t('objects.keyImage')}>
           ★

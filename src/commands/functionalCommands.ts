@@ -18,6 +18,15 @@ const panel = (id: 'fusion' | 'tic' | 'dsa', label: string, isAvailable?: (ctx: 
 })
 
 export const functionalCommands: Command[] = [
+  {
+    id: 'panel.segment',
+    group: 'panel',
+    label: 'commands.segmentPanel',
+    icon: 'SEG',
+    isAvailable: (ctx) => ctx.mode !== '3d' || ctx.state.panel === 'segment',
+    isActive: (ctx) => ctx.state.panel === 'segment',
+    run: () => togglePanel('segment'),
+  },
   panel('fusion', 'commands.fusionPanel', (ctx) => ctx.mode !== '3d' || ctx.state.panel === 'fusion'),
   {
     id: 'functional.petct',

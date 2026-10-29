@@ -35,6 +35,11 @@ export const PANELS: Record<PanelId, PanelDefinition> = {
     title: 'tic.panelTitle',
     component: lazy(() => import('../components/TicPanel').then((m) => ({ default: m.TicPanel }))),
   },
+  segment: {
+    id: 'segment',
+    title: 'segment.panelTitle',
+    component: lazy(() => import('../components/SegmentationPanel').then((m) => ({ default: m.SegmentationPanel }))),
+  },
   dsa: {
     id: 'dsa',
     title: 'dsa.panelTitle',

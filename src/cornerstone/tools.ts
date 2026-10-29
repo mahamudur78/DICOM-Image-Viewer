@@ -37,6 +37,7 @@ import {
   toolConfiguration,
 } from '../measurements/tools'
 import { RegionWindowTool } from './regionWindowTool'
+import { SEGMENT_TOOL } from '../segmentation/tool'
 
 const { MouseBindings } = ToolEnums
 
@@ -88,6 +89,7 @@ export const PRIMARY_TOOLS = {
   ellipsoid: EllipsoidTool.toolName,
   redaction: RedactionTool.toolName,
   calibrate: CalibrationTool.toolName,
+  segment: SEGMENT_TOOL,
 } as const
 
 export type PrimaryTool = keyof typeof PRIMARY_TOOLS
@@ -124,8 +126,8 @@ export const DOUBLE_CLICK_TOOLS: PrimaryTool[] = ['polygon', 'polyline', 'curve'
 
 /** Which toolbar tools exist in each view mode's tool group. */
 const GROUP_TOOLS: Record<string, PrimaryTool[]> = {
-  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'cursor3d', ...MEASUREMENTS, ...IMAGE_ONLY],
-  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', 'cursor3d', ...MEASUREMENTS],
+  [TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'cursor3d', 'segment', ...MEASUREMENTS, ...IMAGE_ONLY],
+  [MPR_TOOL_GROUP_ID]: ['windowLevel', 'windowRegion', 'pan', 'zoom', 'magnify', 'crosshairs', 'cursor3d', 'segment', ...MEASUREMENTS],
   [VR_TOOL_GROUP_ID]: ['rotate', 'shift', 'pan', 'zoom'],
 }
 

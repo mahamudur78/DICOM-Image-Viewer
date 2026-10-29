@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৮ সম্পন্ন, ফেজ ৯ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৯ সম্পন্ন, ফেজ ১০ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -257,7 +257,7 @@
 - [x] **PET MIP ঘোরানো** (rotating MIP)
 - [x] **SUV হিসাব** (`@cornerstonejs/calculate-suv`): SUVbw, SUVlbm, SUVbsa; decay correction যাচাই
 - [x] ROI-তে SUVmax, SUVmean, SUVpeak; 3D ROI (sphere/"3D ball")
-- [ ] ~~**TMTV / MTV** (মোট metabolic tumor volume, threshold-ভিত্তিক) — ফেজ ৯-এর segmentation দরকার, তাই সেখানে শেষ হবে~~ → ফেজ ৯
+- [x] ~~**TMTV / MTV** (মোট metabolic tumor volume, threshold-ভিত্তিক) — ফেজ ৯-এর segmentation দরকার, তাই সেখানে শেষ হবে~~ → ফেজ ৯-এ সম্পন্ন
 
 **Time-intensity curve (TIC)**
 - [x] Dynamic/multi-phase সিরিজ চেনা (temporal position)
@@ -300,20 +300,20 @@
 
 ## ফেজ ৯: Segmentation সম্পাদনা
 
-- [ ] Segmentation-এর মূল কাঠামো (labelmap, একাধিক segment, নাম, রং)
-- [ ] Brush ও eraser (আকার নিয়ন্ত্রণ), 2D আর MPR-এ
-- [ ] Threshold brush আর threshold দিয়ে পুরো volume-এ segment
-- [ ] Region growing / flood fill
-- [ ] Scissors (rectangle, circle, freehand দিয়ে ভরানো/মোছা)
-- [ ] Slice-এর মধ্যে interpolation
-- [ ] Contour (RTSTRUCT ধাঁচ) আঁকা ও সম্পাদনা
-- [ ] Segment-এর আয়তন, mean HU/SUV, সর্বোচ্চ ব্যাস
-- [ ] 3D-তে segment দেখা (surface)
-- [ ] **TMTV** (ফেজ ৭ থেকে) সম্পূর্ণ করা
-- [ ] DICOM SEG হিসেবে সেভ/ডাউনলোড; RTSTRUCT হিসেবে সেভ (ঐচ্ছিক)
-- [ ] Segment থেকে STL export
-- [ ] Undo/redo
-- [ ] Definition of Done পূরণ
+- [x] Segmentation-এর মূল কাঠামো (labelmap, একাধিক segment, নাম, রং)
+- [x] Brush ও eraser (আকার নিয়ন্ত্রণ), 2D আর MPR-এ
+- [x] Threshold brush আর threshold দিয়ে পুরো volume-এ segment
+- [x] Region growing / flood fill
+- [x] Scissors (rectangle, circle, freehand দিয়ে ভরানো/মোছা)
+- [x] Slice-এর মধ্যে interpolation
+- [x] Contour (RTSTRUCT ধাঁচ) আঁকা ও সম্পাদনা
+- [x] Segment-এর আয়তন, mean HU/SUV, সর্বোচ্চ ব্যাস
+- [x] 3D-তে segment দেখা (surface)
+- [x] **TMTV** (ফেজ ৭ থেকে) সম্পূর্ণ করা
+- [x] DICOM SEG হিসেবে সেভ/ডাউনলোড; RTSTRUCT হিসেবে সেভ (ঐচ্ছিক)
+- [x] Segment থেকে STL export
+- [x] Undo/redo
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_9_SEGMENTATION_PLAN.md](PHASE_9_SEGMENTATION_PLAN.md))
 
 ## ফেজ ১০: UX, মোবাইল, ভাষা, অফলাইন
 

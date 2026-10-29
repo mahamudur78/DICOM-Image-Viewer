@@ -441,6 +441,69 @@ export function showSurface(viewportId: string, threshold: number, reduce: numbe
   return { triangles: mesh.triangles.length / 3, ...meshMeasures(mesh) }
 }
 
+/** A segment's surface (marching cubes on its mask), in the patient's frame. */
+export function labelMesh(grid: VolumeGrid, bit: number): { mesh: Mesh; polyData: ReturnType<ReturnType<typeof vtkImageMarchingCubes.newInstance>['getOutputData']> } | null {
+  const [nx, ny, nz] = grid.dimensions
+  // A one-voxel empty border closes surfaces that touch the edge.
+  const dims = [nx + 2, ny + 2, nz + 2]
+  const values = new Float32Array(dims[0] * dims[1] * dims[2])
+  let any = false
+  for (let k = 0; k < nz; k++)
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++)
+        if (Math.floor(grid.scalars[k * nx * ny + j * nx + i] / 2 ** bit) % 2 === 1) {
+          values[i + 1 + dims[0] * (j + 1 + dims[1] * (k + 1))] = 1
+          any = true
+        }
+  if (!any) return null
+  const image = vtkImageData.newInstance()
+  image.setDimensions(dims)
+  image.setSpacing(v3(grid.spacing))
+  image.setOrigin([0, 0, 0])
+  image.getPointData().setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }))
+  const cubes = vtkImageMarchingCubes.newInstance({ contourValue: 0.5, computeNormals: true, mergePoints: true })
+  cubes.setInputData(image)
+  cubes.update()
+  const polyData = cubes.getOutputData()
+  const raw = polyData.getPoints().getData() as Float32Array
+  const points = new Float32Array(raw.length)
+  for (let p = 0; p < raw.length; p += 3) {
+    const index = [raw[p] / grid.spacing[0] - 1, raw[p + 1] / grid.spacing[1] - 1, raw[p + 2] / grid.spacing[2] - 1]
+    points.set(indexToWorld(grid, index), p)
+  }
+  polyData.getPoints().setData(points, 3)
+  return { mesh: { points, triangles: trianglesFromPolys(polyData.getPolys().getData() as Uint32Array) }, polyData }
+}
+
+const LABEL_SURFACE_PREFIX = 'segment-surface-'
+
+/** Shows segment surfaces in a 3D view (replacing earlier ones), each in its colour. */
+export function showLabelSurfaces(viewportId: string, surfaces: { bit: number; color: number[]; polyData: ReturnType<typeof labelMesh> extends infer M ? (M extends { polyData: infer P } ? P : never) : never }[]) {
+  const viewport = vrViewport(viewportId)
+  if (!viewport) return
+  hideLabelSurfaces(viewportId, false)
+  for (const surface of surfaces) {
+    const mapper = vtkMapper.newInstance()
+    mapper.setInputData(surface.polyData)
+    mapper.setScalarVisibility(false)
+    const actor = vtkActor.newInstance()
+    actor.setMapper(mapper)
+    actor.getProperty().setColor(surface.color[0] / 255, surface.color[1] / 255, surface.color[2] / 255)
+    viewport.addActor({ uid: `${LABEL_SURFACE_PREFIX}${surface.bit}`, actor: actor as never })
+  }
+  viewport.render()
+}
+
+export function hideLabelSurfaces(viewportId: string, render = true) {
+  const viewport = vrViewport(viewportId)
+  if (!viewport) return
+  const uids = viewport.getActors().filter((a) => a.uid.startsWith(LABEL_SURFACE_PREFIX)).map((a) => a.uid)
+  if (uids.length) viewport.removeActors(uids)
+  if (render) viewport.render()
+}
+
+export const labelSurfaceCount = (viewportId: string) => vrViewport(viewportId)?.getActors().filter((a) => a.uid.startsWith(LABEL_SURFACE_PREFIX)).length ?? 0
+
 export function hideSurface(viewportId: string, render = true) {
   const viewport = vrViewport(viewportId)
   if (!viewport) return

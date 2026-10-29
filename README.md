@@ -36,6 +36,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
 | `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
+| `src/segmentation/` | Segmentation editing: brush, threshold, region growing, scissors, interpolation, statistics, TMTV, undo, DICOM SEG / RTSTRUCT writing |
 | `src/objects/` | Non-image objects: SEG, RTSTRUCT, RTDOSE (isodose, DVH), RTPLAN, parametric maps, measurement SR, key objects, presentation states, waveforms, whole-slide levels — reading, writing and applying them |
 | `src/functional/` | Fusion (overlay rendering, registration), PET/CT layout, SUV sphere statistics, dynamic phases, time-intensity curves, DSA |
 | `src/volume/` | Volume maths (sampling, oblique slices, curved reformat, ray picking, transfer functions, meshes), reformatted DICOM |
@@ -110,6 +111,11 @@ separate chunk that starts downloading right after the first render.
   shutters, annotations; read and save), 12-lead ECG with speed, gain and calipers, other waveforms, voice
   audio, whole-slide microscopy (tiled pyramid, zoom, pan, length), ophthalmic and dental images, and
   mirrored mammography hanging; AI-made objects carry a badge
+- Segmentation: segments with names and colours; brush, eraser and threshold brush (2D and MPR), threshold
+  of the whole volume, region growing, rectangle / circle / freehand scissors through a slice or the whole
+  depth, contours, filling between slices, undo and redo; volume, mean / SD / min / max (HU, SUV) and largest
+  diameter per segment; surfaces in 3D and STL; TMTV with lesions, SUVmax, SUVmean and TLG on PET; saved as
+  DICOM SEG or RTSTRUCT (loaded SEG and RTSTRUCT can be edited too)
 - Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
   seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
   movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or
