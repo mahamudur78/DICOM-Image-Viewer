@@ -27,10 +27,12 @@ function canvasPixel(page: Page, id: string, fx = 0.5, fy = 0.5) {
 }
 
 const brightness = (rgb: number[]) => rgb[0] + rgb[1] + rgb[2]
+// A 3D re-render in SwiftShader on CI can take far longer than the default 15 s.
+const RENDER = { timeout: 90_000 }
 
 async function open3d(page: Page) {
-  // 3D in a software renderer (SwiftShader) is slow.
-  test.slow()
+  // 3D in a software renderer (SwiftShader) is slow, more so with two workers sharing a CI runner.
+  test.setTimeout(480_000)
   await openPhantom(page)
   await viewport(page, 'viewport-1').click()
   await page.getByRole('button', { name: '3D volume rendering' }).click()
@@ -178,7 +180,7 @@ test('3D: transfer function, MIP, crop and clipping change the picture', async (
   const editor = (await panel.getByTestId('tf-editor').boundingBox())!
   await page.mouse.move(editor.x + editor.width * 0.3, editor.y + 2, { steps: 5 })
   await page.mouse.up()
-  await expect.poll(() => canvasPixel(page, 'vr-main')).not.toEqual(before)
+  await expect.poll(() => canvasPixel(page, 'vr-main'), RENDER).not.toEqual(before)
 
   await panel.getByRole('combobox', { name: 'Mode' }).selectOption('mip')
   const mip = await canvasPixel(page, 'vr-main')
@@ -186,7 +188,7 @@ test('3D: transfer function, MIP, crop and clipping change the picture', async (
 
   // Cropping the top half away leaves the top of the view empty.
   await panel.getByRole('slider', { name: 'Top to' }).fill('0.5')
-  await expect.poll(async () => brightness(await canvasPixel(page, 'vr-main', 0.5, 0.15))).toBeLessThan(30)
+  await expect.poll(async () => brightness(await canvasPixel(page, 'vr-main', 0.5, 0.15)), RENDER).toBeLessThan(30)
   await panel.getByRole('button', { name: 'Show everything' }).click()
   await panel.getByRole('combobox', { name: 'Clipping plane' }).selectOption('coronal')
   await expect(panel.getByRole('slider', { name: 'Position (mm)' })).toBeVisible()
@@ -226,10 +228,10 @@ test('3D: surface, STL export, snapshots, measuring and the scalpel', async ({ p
   for (const [fx, fy] of [[0.7, 0.3], [0.7, 0.7], [0.3, 0.7], [0.3, 0.31]]) await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy, { steps: 4 })
   await page.mouse.up()
   await expect(page.getByText(/Cut away \d+ voxels/)).toBeVisible({ timeout: 60_000 })
-  await expect.poll(() => canvasPixel(page, 'vr-main')).not.toEqual(centre)
+  await expect.poll(() => canvasPixel(page, 'vr-main'), RENDER).not.toEqual(centre)
   await panel.getByRole('button', { name: /^Undo cut/ }).click()
   // Back to (about) the picture before the cut.
-  await expect.poll(async () => Math.abs(brightness(await canvasPixel(page, 'vr-main')) - brightness(centre))).toBeLessThan(25)
+  await expect.poll(async () => Math.abs(brightness(await canvasPixel(page, 'vr-main')) - brightness(centre)), RENDER).toBeLessThan(25)
 })
 
 test('3D: rotation movie, high-resolution PNG and endoscopy', async ({ page }) => {
