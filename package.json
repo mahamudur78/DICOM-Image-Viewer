@@ -7,22 +7,40 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "E2E_PROD=1 playwright test",
+    "size": "node scripts/check-bundle.mjs",
+    "samples:fetch": "node scripts/fetch-sample-data.mjs",
     "preview": "vite preview",
     "predev": "node scripts/copy-wasm.mjs",
     "prebuild": "node scripts/copy-wasm.mjs",
     "deploy": "npm run build && npx wrangler pages deploy"
   },
   "dependencies": {
+    "@cornerstonejs/calculate-suv": "^1.0.3",
     "@cornerstonejs/core": "^5.13.2",
     "@cornerstonejs/dicom-image-loader": "^5.13.2",
     "@cornerstonejs/tools": "^5.13.2",
+    "@kitware/vtk.js": "36.4.1",
+    "@zip.js/zip.js": "^2.24.0",
+    "dcmjs": "0.52.0",
     "dicom-parser": "^1.8.21",
     "events": "^3.3.0",
+    "i18next": "^26.5.11",
+    "mp4-muxer": "^5.2.2",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "url": "^0.11.4"
+    "react-i18next": "^17.1.9",
+    "url": "^0.11.4",
+    "utif2": "^4.1.0",
+    "webm-muxer": "^5.1.4",
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
@@ -31,6 +49,7 @@
     "oxlint": "^1.88.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }

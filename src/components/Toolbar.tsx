@@ -1,101 +1,97 @@
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import {
+  COMMANDS,
+  getCommand,
+  isAvailable,
+  runCommand,
+  windowOptionsFor,
+  isEnabled,
+  type Command,
+  type CommandContext,
+  type CommandGroup,
+} from '../commands/commands'
+import { useCommandContext } from '../commands/useCommands'
 import type { SlabMode } from '../cornerstone/mpr'
-import { toolsForMode, type PrimaryTool, type ViewMode } from '../cornerstone/tools'
-import { CT_PRESETS, downloadPng, flip, rotate90, setWindow, toggleInvert } from '../cornerstone/viewer'
+import { is2dKind } from '../cornerstone/viewportRegistry'
 import { groupedPresets } from '../cornerstone/volume3d'
+import { COLORMAPS, applyWindow, getColormapName, isColorImage, isVoiLutColormap, voiLutOf } from '../cornerstone/display'
+import { FILTERS } from '../store/viewportDisplayStore'
+import { openFiles } from '../store/viewerActions'
+import { selectCurrentDisplaySet, setLayout, setPreset, setSlab, useViewer } from '../store/viewerStore'
+import { CommandMenu, type MenuSection } from './CommandMenu'
 import { FilePickers } from './FilePickers'
-import { LAYOUTS, type Layout } from './layouts'
-import { LINK_BUTTONS, TOOL_BUTTONS, type LinkSettings } from './toolButtons'
+import { LayoutIcon } from './LayoutIcon'
+import { PhaseControls } from './PhaseControls'
+import { MAX_LAYOUT_SIZE, MORE_LAYOUTS, clampLayout, type Layout } from './layouts'
 import { useViewportVoi } from './useViewportVoi'
-
-interface ToolbarProps {
-  mode: ViewMode
-  onModeChange: (mode: ViewMode) => void
-  activeTool: PrimaryTool
-  onToolChange: (tool: PrimaryTool) => void
-  /** Viewport the view actions apply to, or null when the active cell is empty. */
-  viewportId: string | null
-  /** True when that viewport is a 3D rendering (2D-only actions are hidden). */
-  viewportIs3d: boolean
-  onReset: () => void
-  modality: string
-  layout: Layout
-  onLayoutChange: (layout: Layout) => void
-  links: LinkSettings
-  onToggleLink: (key: keyof LinkSettings) => void
-  slab: Slab
-  onSlabChange: (slab: Slab) => void
-  mprWith3d: boolean
-  onToggleMprWith3d: () => void
-  preset: string
-  onPresetChange: (preset: string) => void
-  showTags: boolean
-  onToggleTags: () => void
-  onFiles: (files: File[]) => void
-}
-
-export interface Slab {
-  mode: SlabMode
-  thickness: number
-}
 
 const SLAB_THICKNESSES = [0, 5, 10, 20, 40]
 const SLAB_MODES: { mode: SlabMode; label: string }[] = [
-  { mode: 'mip', label: 'MIP' },
-  { mode: 'minip', label: 'MinIP' },
-  { mode: 'avg', label: 'Average' },
+  { mode: 'mip', label: 'toolbar.slabMip' },
+  { mode: 'minip', label: 'toolbar.slabMinip' },
+  { mode: 'avg', label: 'toolbar.slabAvg' },
 ]
 
 const SELECT_CLASS = 'h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200 disabled:opacity-40'
 
-function IconButton({
-  label,
-  onClick,
-  active = false,
-  disabled = false,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  active?: boolean
-  disabled?: boolean
-  children: React.ReactNode
-}) {
+/** Groups whose icon is a short text label rather than a symbol. */
+const TEXT_ICON_GROUPS: CommandGroup[] = ['mode', 'link', 'panel', 'compare']
+
+function CommandButton({ command, ctx }: { command: Command; ctx: CommandContext }) {
+  const { t } = useTranslation()
+  const label = t(command.label, command.labelValues)
+  const shortcut = command.keys?.[0]
+  const title = shortcut?.length === 1 ? `${label} (${shortcut.toUpperCase()})` : label
+  const active = command.isActive?.(ctx) ?? false
+  const layout = command.group === 'layout' ? (command.labelValues as { rows: number; cols: number }) : null
+
   return (
     <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
+      onClick={() => command.run(ctx)}
+      title={title}
+      aria-label={title}
       aria-pressed={active}
-      disabled={disabled}
-      className={`grid h-9 min-w-9 place-items-center rounded-md px-2 text-base transition disabled:opacity-30 ${
+      disabled={!isEnabled(command, ctx)}
+      className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-md px-2 text-base transition disabled:opacity-30 max-sm:h-11 max-sm:min-w-11 ${
         active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
       }`}
     >
-      {children}
+      {layout ? (
+        <LayoutIcon {...layout} />
+      ) : TEXT_ICON_GROUPS.includes(command.group) ? (
+        <span className="text-[10px] font-semibold tracking-wide">{command.icon}</span>
+      ) : (
+        command.icon
+      )}
     </button>
   )
 }
 
 const Divider = () => <div className="mx-1 h-6 w-px bg-slate-700" />
 
-function LayoutIcon({ rows, cols }: Layout) {
-  return (
-    <span
-      className="grid h-4 w-5 gap-px"
-      style={{ gridTemplateRows: `repeat(${rows}, 1fr)`, gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-    >
-      {Array.from({ length: rows * cols }, (_, i) => (
-        <span key={i} className="rounded-[1px] bg-current" />
-      ))}
-    </span>
-  )
+/** Buttons for command groups. Keyboard-only commands (no icon) and unavailable ones are skipped. */
+function groupButtons(groups: CommandGroup[], ctx: CommandContext) {
+  return COMMANDS.filter(
+    (command) =>
+      groups.includes(command.group) && (command.icon !== undefined || command.group === 'layout') && isAvailable(command, ctx),
+  ).map((command) => <CommandButton key={command.id} command={command} ctx={ctx} />)
 }
 
-function PresetSelect({ modality, preset, onChange }: { modality: string; preset: string; onChange: (p: string) => void }) {
+const PRESET_GROUP_LABELS: Record<string, string> = { Other: 'toolbar.presetGroupOther', All: 'toolbar.presetGroupAll' }
+
+function PresetSelect({ modality }: { modality: string }) {
+  const { t } = useTranslation()
+  const preset = useViewer((s) => s.preset)
   return (
-    <select aria-label="3D preset" value={preset} onChange={(event) => onChange(event.target.value)} className={SELECT_CLASS}>
+    <select
+      aria-label={t('toolbar.preset3d')}
+      value={preset}
+      onChange={(event) => setPreset(event.target.value)}
+      className={SELECT_CLASS}
+    >
       {groupedPresets(modality).map((group) => (
-        <optgroup key={group.label} label={group.label}>
+        <optgroup key={group.label} label={PRESET_GROUP_LABELS[group.label] ? t(PRESET_GROUP_LABELS[group.label]) : group.label}>
           {group.presets.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -108,178 +104,377 @@ function PresetSelect({ modality, preset, onChange }: { modality: string; preset
 }
 
 /**
- * Shows the preset matching the viewport's current window, or the window
- * itself once it has been changed some other way (e.g. by dragging).
+ * The window dropdown: windows from the image header, built-in and user
+ * presets (keys 1–9 in this order), then actions. Shows the option matching
+ * the viewport's window, or the window itself once changed some other way.
  */
-function WindowPresetSelect({ viewportId }: { viewportId: string }) {
+function WindowSelect({ viewportId, ctx }: { viewportId: string; ctx: CommandContext }) {
+  const { t } = useTranslation()
   const voi = useViewportVoi(viewportId)
-  // ±1 because a DICOM window of 400/40 is stored as the range -160..239 (width 399).
-  const matching = voi
-    ? CT_PRESETS.findIndex((p) => Math.abs(p.width - voi.width) <= 1 && Math.abs(p.center - voi.center) <= 1)
-    : -1
+  const options = windowOptionsFor(ctx)
+  const voiLut = voiLutOf(viewportId)
+  const close = (o: { width: number; center: number }) => voi && Math.abs(o.width - voi.width) <= 1 && Math.abs(o.center - voi.center) <= 1
+  // A named preset reads better than an unnamed header window with the same values.
+  const matching = [...options.entries()].sort(([, a], [, b]) => Number(a.labelKey && a.source === 'header') - Number(b.labelKey && b.source === 'header')).find(([, o]) => close(o))?.[0] ?? -1
+  const label = (o: (typeof options)[number]) => (o.labelKey ? t(o.label) : o.label)
+  const groups = (['header', 'builtin', 'user'] as const).map((source) => ({
+    source,
+    items: options.map((o, index) => ({ o, index })).filter(({ o }) => o.source === source),
+  }))
 
   return (
     <select
-      aria-label="Window preset"
-      value={matching >= 0 ? String(matching) : ''}
+      aria-label={t('toolbar.windowPreset')}
+      value={isVoiLutColormap(getColormapName(viewportId)) ? 'voiLut' : matching >= 0 ? `option:${matching}` : ''}
       onChange={(event) => {
-        const windowPreset = CT_PRESETS[Number(event.target.value)]
-        if (windowPreset) setWindow(viewportId, windowPreset.width, windowPreset.center)
+        const value = event.target.value
+        if (value.startsWith('option:')) {
+          const option = options[Number(value.slice(7))]
+          applyWindow(viewportId, option.width, option.center)
+        } else runCommand(`window.${value}`, ctx)
       }}
-      className={`ml-1 ${SELECT_CLASS}`}
+      className={`ml-1 max-w-48 ${SELECT_CLASS}`}
     >
       <option value="" disabled>
-        {voi && matching < 0 ? `W/L ${voi.width}/${voi.center}` : 'W/L preset'}
+        {voi && matching < 0 ? t('toolbar.currentWindow', { width: voi.width, center: voi.center }) : t('toolbar.windowPresetPlaceholder')}
       </option>
-      {CT_PRESETS.map((p, index) => (
-        <option key={p.label} value={index}>
-          {p.label} ({p.width}/{p.center})
-        </option>
-      ))}
+      {groups.map(
+        ({ source, items }) =>
+          items.length > 0 && (
+            <optgroup key={source} label={t(`window.group.${source}`)}>
+              {items.map(({ o, index }) => (
+                <option key={o.id} value={`option:${index}`}>
+                  {index < 9 ? `${index + 1}. ` : ''}
+                  {label(o)} ({Math.round(o.width)}/{Math.round(o.center)})
+                </option>
+              ))}
+            </optgroup>
+          ),
+      )}
+      <optgroup label={t('window.group.actions')}>
+        {voiLut && <option value="voiLut">{t('commands.windowVoiLut')}{voiLut.explanation ? `: ${voiLut.explanation}` : ''}</option>}
+        <option value="auto">{t('commands.windowAuto')}</option>
+        <option value="fullRange">{t('commands.windowFullRange')}</option>
+        <option value="custom">{t('commands.windowCustom')}</option>
+        <option value="manage">{t('commands.windowManage')}</option>
+      </optgroup>
     </select>
   )
 }
 
-export function Toolbar({
-  mode,
-  onModeChange,
-  activeTool,
-  onToolChange,
-  viewportId,
-  viewportIs3d,
-  onReset,
-  modality,
-  layout,
-  onLayoutChange,
-  links,
-  onToggleLink,
-  slab,
-  onSlabChange,
-  mprWith3d,
-  onToggleMprWith3d,
-  preset,
-  onPresetChange,
-  showTags,
-  onToggleTags,
-  onFiles,
-}: ToolbarProps) {
-  const withViewport = (action: (id: string) => void) => () => {
-    if (viewportId) action(viewportId)
+/** A toolbar button opening a menu of commands below it; shown pressed when one of its choices is active. */
+function MenuButton({ label, icon, sections, active = false }: { label: string; icon: ReactNode; sections: MenuSection[]; active?: boolean }) {
+  const { t } = useTranslation()
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
+  const close = useCallback(() => setAnchor(null), [])
+  return (
+    <>
+      <button
+        title={t(label)}
+        aria-label={t(label)}
+        aria-haspopup="menu"
+        aria-expanded={anchor !== null}
+        aria-pressed={active || undefined}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          setAnchor(anchor ? null : { x: rect.left, y: rect.bottom + 4 })
+        }}
+        className={`flex h-9 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-semibold max-sm:h-11 ${
+          active ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+        }`}
+      >
+        {icon}
+        <span aria-hidden>▾</span>
+      </button>
+      {anchor && <CommandMenu x={anchor.x} y={anchor.y} sections={sections} label={t(label)} onClose={close} />}
+    </>
+  )
+}
+
+const VIEW_MENU: MenuSection[] = [
+  { title: 'menus.rotate', commands: ['rotate.left', 'view.rotate90', 'rotate.180', 'rotate.angle', 'view.flipHorizontal', 'view.flipVertical'] },
+  { title: 'menus.zoom', commands: ['zoom.fit', 'zoom.50', 'zoom.100', 'zoom.200', 'zoom.400', 'zoom.trueSize', 'zoom.screenDpi'] },
+  { title: 'menus.pixels', commands: ['image.smooth', 'image.sigmoid'] },
+  {
+    title: 'menus.overlays',
+    commands: ['display.overlayText', 'display.privacy', 'display.dicomOverlays', 'display.scaleBar', 'display.pixelValue'],
+  },
+  {
+    title: 'menus.cornerText',
+    commands: [
+      'display.cornerPatient',
+      'display.cornerStudy',
+      'display.cornerImageSize',
+      'display.cornerZoom',
+      'display.cornerWindow',
+      'display.cornerSlice',
+      'display.orientationMarkers',
+    ],
+  },
+  { title: 'menus.referenceLines', commands: ['link.referenceLines', 'link.referenceLinesAll', 'link.referenceLinesEnds'] },
+  { title: 'menus.screen', commands: ['display.fullscreen', 'display.distractionFree'] },
+]
+
+const IMAGE_MENU: MenuSection[] = [
+  { title: 'menus.colormap', commands: COLORMAPS.map((name) => `colormap.${name}`) },
+  { title: 'menus.filter', commands: ['filter.none', ...FILTERS.map((type) => `filter.${type}`)] },
+  { title: 'menus.strength', commands: ['filter.strength1', 'filter.strength2', 'filter.strength3'] },
+]
+
+const MEASURE_MENU: MenuSection[] = [
+  {
+    title: 'menus.lines',
+    commands: ['tool.length', 'tool.polyline', 'tool.angle', 'tool.cobb', 'tool.bidirectional', 'tool.deviation', 'tool.ratio', 'tool.ellipsoid'],
+  },
+  { title: 'menus.areas', commands: ['tool.rectangle', 'tool.ellipse', 'tool.circle', 'tool.sphere', 'tool.polygon', 'tool.curve', 'tool.freehand', 'tool.probe'] },
+  { title: 'menus.annotate', commands: ['tool.arrow', 'tool.label', 'tool.spine', 'measure.spineStart', 'tool.pencil', 'tool.redaction'] },
+  { title: 'menus.calibration', commands: ['tool.calibrate', 'measure.clearCalibration', 'measure.unitMm', 'measure.unitCm'] },
+  {
+    title: 'menus.manage',
+    commands: [
+      'panel.measurements',
+      'measure.undo',
+      'measure.redo',
+      'measure.copy',
+      'measure.paste',
+      'measure.toggleHidden',
+      'measure.deleteSelected',
+      'measure.deleteImage',
+      'measure.deleteSeries',
+      'measure.deleteAll',
+    ],
+  },
+  { title: 'menus.export', commands: ['measure.copyValues', 'measure.exportCsv', 'measure.saveJson', 'measure.loadJson'] },
+]
+
+const COMPARE_MENU: MenuSection[] = [
+  { title: 'menus.compare', commands: ['compare.prior', 'compare.addFiles', 'compare.addFolder', 'compare.newWindow'] },
+  {
+    title: 'menus.links',
+    commands: ['link.sliceSync', 'link.voiSync', 'link.zoomPanSync', 'link.cineSync', 'link.lock', 'link.cell'],
+  },
+  { title: 'menus.referenceLines', commands: ['link.referenceLines', 'link.referenceLinesAll', 'link.referenceLinesEnds'] },
+  { title: 'menus.cursor3d', commands: ['tool.cursor3d', 'compare.clearCursor'] },
+  { title: 'menus.hanging', commands: ['hanging.apply', 'hanging.save', 'hanging.manage'] },
+]
+
+const REFORMAT_MENU: MenuSection[] = [
+  { title: 'menus.planes', commands: ['mpr.resetPlanes', 'mpr.newSeries'] },
+  { title: 'menus.cpr', commands: ['mpr.cprStart', 'mpr.cprUndo', 'mpr.cprMake', 'mpr.cprClear'] },
+]
+
+const FUNCTIONAL_MENU: MenuSection[] = [
+  { title: 'menus.fusion', commands: ['panel.fusion', 'functional.petct', 'tool.sphere'] },
+  { title: 'menus.dynamic', commands: ['panel.tic', 'functional.mpr4d', 'panel.dsa'] },
+]
+
+const OBJECTS_MENU: MenuSection[] = [
+  { title: 'menus.keyImages', commands: ['objects.keyImage', 'objects.keyOnly', 'objects.saveKeyObjects'] },
+  { title: 'menus.saveObjects', commands: ['objects.saveSr', 'objects.savePresentation'] },
+  { title: 'menus.archive', commands: ['archive.save', 'archive.open'] },
+]
+
+const EXPORT_MENU: MenuSection[] = [
+  { title: 'menus.exportImages', commands: ['export.images', 'export.movie', 'export.copyImage', 'export.captureRegion', 'export.print'] },
+  { title: 'menus.exportDicom', commands: ['export.originals.series', 'export.originals.study', 'export.originals.all', 'export.decompress', 'export.tagEdit'] },
+  { title: 'menus.privacy', commands: ['export.anonymize', 'export.convert'] },
+]
+
+/** Tools chosen from the Measure menu (the toolbar has buttons for the others). */
+const MENU_TOOLS = new Set(MEASURE_MENU.flatMap((section) => section.commands).filter((id) => id.startsWith('tool.') && !getCommand(id).icon))
+
+/** More layouts: common presets and a rows × columns grid to pick from. */
+function LayoutPicker() {
+  const { t } = useTranslation()
+  const layout = useViewer((s) => s.layout)
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState<Layout | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => !ref.current?.contains(event.target as Node) && setOpen(false)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [open])
+
+  const choose = (next: Layout) => {
+    setLayout(clampLayout(next))
+    setOpen(false)
   }
-  const noViewport = viewportId === null
-  const available = toolsForMode(mode)
-  const show3dControls = mode === '3d' || (mode === 'mpr' && mprWith3d)
+  const shown = hover ?? layout
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5">
-      {TOOL_BUTTONS.filter(({ tool }) => available.includes(tool)).map(({ tool, label, icon, key }) => (
-        <IconButton key={tool} label={`${label} (${key})`} active={activeTool === tool} onClick={() => onToolChange(tool)}>
-          {icon}
-        </IconButton>
-      ))}
-
-      <Divider />
-
-      {!viewportIs3d && (
-        <>
-          <IconButton label="Invert (I)" disabled={noViewport} onClick={withViewport(toggleInvert)}>
-            ◑
-          </IconButton>
-          <IconButton label="Rotate 90°" disabled={noViewport} onClick={withViewport(rotate90)}>
-            ↻
-          </IconButton>
-          <IconButton label="Flip horizontal" disabled={noViewport} onClick={withViewport((id) => flip(id, 'horizontal'))}>
-            ⇋
-          </IconButton>
-          <IconButton label="Flip vertical" disabled={noViewport} onClick={withViewport((id) => flip(id, 'vertical'))}>
-            ⇵
-          </IconButton>
-        </>
-      )}
-      <IconButton label="Reset (R)" disabled={noViewport} onClick={onReset}>
-        ⟲
-      </IconButton>
-
-      {modality === 'CT' && viewportId && !viewportIs3d && <WindowPresetSelect viewportId={viewportId} />}
-
-      <Divider />
-
-      <IconButton label="MPR: axial, sagittal and coronal views" active={mode === 'mpr'} onClick={() => onModeChange('mpr')}>
-        <span className="text-[10px] font-semibold tracking-wide">MPR</span>
-      </IconButton>
-      <IconButton label="3D volume rendering" active={mode === '3d'} onClick={() => onModeChange('3d')}>
-        <span className="text-[10px] font-semibold tracking-wide">3D</span>
-      </IconButton>
-
-      {mode === 'mpr' && (
-        <>
-          <IconButton label="MPR + 3D layout (2×2)" active={mprWith3d} onClick={onToggleMprWith3d}>
-            <span className="text-[10px] font-semibold tracking-wide">+3D</span>
-          </IconButton>
-          <select
-            aria-label="Slab thickness"
-            value={slab.thickness}
-            onChange={(event) => onSlabChange({ ...slab, thickness: Number(event.target.value) })}
-            className={SELECT_CLASS}
-          >
-            {SLAB_THICKNESSES.map((mm) => (
-              <option key={mm} value={mm}>
-                {mm === 0 ? 'Slab: off' : `Slab ${mm} mm`}
-              </option>
+    <div ref={ref} className="relative">
+      <button
+        title={t('layoutPicker.more')}
+        aria-label={t('layoutPicker.more')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex h-9 items-center gap-1 rounded-md px-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+      >
+        ▦<span aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div role="dialog" aria-label={t('layoutPicker.more')} className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-xl">
+          <div className="mb-2 grid grid-cols-3 gap-1">
+            {MORE_LAYOUTS.map((option) => (
+              <button
+                key={`${option.rows}x${option.cols}`}
+                aria-label={t('commands.layout', { ...option })}
+                aria-pressed={option.rows === layout.rows && option.cols === layout.cols}
+                onClick={() => choose(option)}
+                className="flex items-center justify-center gap-1 rounded px-1 py-1 text-xs text-slate-300 hover:bg-slate-800 aria-pressed:bg-sky-600 aria-pressed:text-white"
+              >
+                <LayoutIcon {...option} />
+                {option.rows}×{option.cols}
+              </button>
             ))}
-          </select>
-          <select
-            aria-label="Slab projection"
-            value={slab.mode}
-            disabled={slab.thickness === 0}
-            onChange={(event) => onSlabChange({ ...slab, mode: event.target.value as SlabMode })}
-            className={SELECT_CLASS}
+          </div>
+          <div
+            className="grid gap-0.5"
+            style={{ gridTemplateColumns: `repeat(${MAX_LAYOUT_SIZE}, 1fr)` }}
+            onPointerLeave={() => setHover(null)}
+            aria-label={t('layoutPicker.grid')}
+            role="group"
           >
-            {SLAB_MODES.map(({ mode: slabMode, label }) => (
-              <option key={slabMode} value={slabMode}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </>
+            {Array.from({ length: MAX_LAYOUT_SIZE * MAX_LAYOUT_SIZE }, (_, i) => {
+              const cell = { rows: Math.floor(i / MAX_LAYOUT_SIZE) + 1, cols: (i % MAX_LAYOUT_SIZE) + 1 }
+              const inside = cell.rows <= shown.rows && cell.cols <= shown.cols
+              return (
+                <button
+                  key={i}
+                  aria-label={t('layoutPicker.cell', { ...cell })}
+                  onPointerEnter={() => setHover(cell)}
+                  onFocus={() => setHover(cell)}
+                  onClick={() => choose(cell)}
+                  className={`aspect-square rounded-sm border ${inside ? 'border-sky-400 bg-sky-500/40' : 'border-slate-700 bg-slate-800'}`}
+                />
+              )
+            })}
+          </div>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            {shown.rows} × {shown.cols}
+          </p>
+        </div>
       )}
+    </div>
+  )
+}
 
-      {show3dControls && <PresetSelect modality={modality} preset={preset} onChange={onPresetChange} />}
+function SlabControls() {
+  const { t } = useTranslation()
+  const slab = useViewer((s) => s.slab)
+  return (
+    <>
+      <select
+        aria-label={t('toolbar.slabThickness')}
+        value={slab.thickness}
+        onChange={(event) => setSlab({ ...slab, thickness: Number(event.target.value) })}
+        className={SELECT_CLASS}
+      >
+        {SLAB_THICKNESSES.map((mm) => (
+          <option key={mm} value={mm}>
+            {mm === 0 ? t('toolbar.slabOff') : t('toolbar.slabMm', { mm })}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label={t('toolbar.slabProjection')}
+        value={slab.mode}
+        disabled={slab.thickness === 0}
+        onChange={(event) => setSlab({ ...slab, mode: event.target.value as SlabMode })}
+        className={SELECT_CLASS}
+      >
+        {SLAB_MODES.map(({ mode, label }) => (
+          <option key={mode} value={mode}>
+            {t(label)}
+          </option>
+        ))}
+      </select>
+    </>
+  )
+}
 
-      {mode === 'grid' && (
-        <>
-          {LAYOUTS.map((option) => (
-            <IconButton
-              key={`${option.rows}x${option.cols}`}
-              label={`Layout ${option.rows}×${option.cols}`}
-              active={option.rows === layout.rows && option.cols === layout.cols}
-              onClick={() => onLayoutChange(option)}
-            >
-              <LayoutIcon {...option} />
-            </IconButton>
-          ))}
+export function Toolbar() {
+  const { t } = useTranslation()
+  const ctx = useCommandContext()
+  const { mode, viewportId, kind } = ctx
+  const modality = useViewer((s) => selectCurrentDisplaySet(s)?.series.modality ?? '')
+  const show3dControls = mode === '3d' || (mode === 'mpr' && ctx.state.mprWith3d)
 
-          <Divider />
+  const is2d = viewportId !== null && is2dKind(kind)
+  const grayscale = is2d && !isColorImage(viewportId)
+  const viewButtons = ['view.invert', 'rotate.left', 'view.rotate90', 'view.flipHorizontal', 'view.flipVertical', 'view.reset']
 
-          {LINK_BUTTONS.map(({ key, label, short }) => (
-            <IconButton key={key} label={label} active={links[key]} onClick={() => onToggleLink(key)}>
-              <span className="text-[10px] font-semibold tracking-wide">{short}</span>
-            </IconButton>
-          ))}
-        </>
-      )}
+  // Sections are separated by a divider; empty ones (e.g. image tools for a PDF) disappear.
+  const sections: ReactNode[][] = [
+    groupButtons(['tool'], ctx),
+    [
+      ...viewButtons.map(getCommand).filter((c) => isAvailable(c, ctx)).map((c) => <CommandButton key={c.id} command={c} ctx={ctx} />),
+      grayscale && <WindowSelect key="window" viewportId={viewportId!} ctx={ctx} />,
+      is2d && <MenuButton key="view-menu" label="menus.view" icon={t('menus.viewShort')} sections={VIEW_MENU} />,
+      is2d && <MenuButton key="image-menu" label="menus.image" icon={t('menus.imageShort')} sections={IMAGE_MENU} />,
+    ],
+    [
+      mode !== '3d' && (
+        <MenuButton
+          key="measure-menu"
+          label="menus.measure"
+          icon={t('menus.measureShort')}
+          sections={MEASURE_MENU}
+          active={MENU_TOOLS.has(`tool.${ctx.state.activeTool}`)}
+        />
+      ),
+    ],
+    [
+      ...groupButtons(['mode'], ctx),
+      mode === 'mpr' && <SlabControls key="slab" />,
+      mode === 'mpr' && <MenuButton key="reformat-menu" label="menus.reformat" icon={t('menus.reformatShort')} sections={REFORMAT_MENU} />,
+      show3dControls && <PresetSelect key="preset" modality={modality} />,
+      mode !== 'grid' && <PhaseControls key="phases" />,
+      <MenuButton key="functional-menu" label="menus.functional" icon={t('menus.functionalShort')} sections={FUNCTIONAL_MENU} />,
+      mode === 'grid' && <MenuButton key="objects-menu" label="menus.objects" icon={t('menus.objectsShort')} sections={OBJECTS_MENU} />,
+    ],
+    mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],
+    mode === 'grid'
+      ? [...groupButtons(['link'], ctx), <MenuButton key="compare-menu" label="menus.compareMenu" icon={t('menus.compareShort')} sections={COMPARE_MENU} />]
+      : [],
+    [
+      ...groupButtons(['view'], ctx).filter((button) => button.key === 'view.downloadPng'),
+      <MenuButton key="export-menu" label="menus.exportMenu" icon={t('menus.exportShort')} sections={EXPORT_MENU} />,
+      ...groupButtons(['panel'], ctx),
+      ...['display.fullscreen'].map(getCommand).filter((c) => isAvailable(c, ctx)).map((c) => <CommandButton key={c.id} command={c} ctx={ctx} />),
+    ],
+  ].map((section) => section.filter(Boolean))
 
-      <Divider />
-
-      <IconButton label="Download PNG" disabled={noViewport} onClick={withViewport((id) => downloadPng(id, 'dicom-image.png'))}>
-        ⤓
-      </IconButton>
-      <IconButton label="DICOM tags (T)" active={showTags} onClick={onToggleTags}>
-        <span className="text-xs font-semibold">TAGS</span>
-      </IconButton>
+  return (
+    // On phones the toolbar sits at the bottom, within thumb reach, as one scrolling row of larger buttons.
+    <div
+      data-testid="toolbar"
+      className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 py-1.5 max-sm:order-last max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:border-t max-sm:border-b-0"
+    >
+      {sections
+        .filter((section) => section.length > 0)
+        .map((section, i) => (
+          <Fragment key={i}>
+            {i > 0 && <Divider />}
+            {section}
+          </Fragment>
+        ))}
 
       <div className="ml-auto">
-        <FilePickers onFiles={onFiles} compact />
+        <FilePickers onFiles={openFiles} compact />
       </div>
     </div>
   )

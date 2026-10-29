@@ -1,15 +1,11 @@
-import { init as coreInit } from '@cornerstonejs/core'
+import { cache, init as coreInit } from '@cornerstonejs/core'
 import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader'
 import {
-  AngleTool,
   CrosshairsTool,
-  EllipticalROITool,
-  LengthTool,
   MagnifyTool,
   OrientationMarkerTool,
   PanTool,
-  ProbeTool,
-  ReferenceLinesTool,
+  ScaleOverlayTool,
   StackScrollTool,
   TrackballRotateTool,
   WindowLevelTool,
@@ -18,9 +14,17 @@ import {
   init as toolsInit,
 } from '@cornerstonejs/tools'
 import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
-import { registerVolumeLoaders } from './mpr'
+import { Cursor3DTool } from '../comparison/cursor3d'
+import { installWindowSync } from '../comparison/multiWindow'
+import { installMeasurementEvents } from '../measurements/manage'
+import { installSphereVolumes } from '../functional/sphereVolume'
+import { SegmentEditTool } from '../segmentation/tool'
+import { MEASUREMENT_TOOLS } from '../measurements/tools'
+import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
-import { createToolGroups } from './tools'
+import { RegionWindowTool } from './regionWindowTool'
+import { applyInputBindings, createToolGroups } from './tools'
+import { useSettings } from '../store/settingsStore'
 import { createRenderingEngine } from './viewer'
 import { VolumeShiftTool } from './volume3d'
 
@@ -29,6 +33,7 @@ let initPromise: Promise<void> | null = null
 export function initCornerstone(): Promise<void> {
   initPromise ??= (async () => {
     coreInit()
+    cache.setMaxCacheSize(imageCacheBudget())
     dicomImageLoaderInit({
       maxWebWorkers: Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)),
       // Codec WASM files are copied here by scripts/copy-wasm.mjs.
@@ -39,31 +44,37 @@ export function initCornerstone(): Promise<void> {
     })
     registerImagePlaneProvider()
     toolsInit()
-    // Created before any thumbnail is rendered: ReferenceLinesTool looks up
-    // viewports on the first registered rendering engine.
+    // Created before any thumbnail is rendered, so the main engine is the first registered one.
     createRenderingEngine()
 
     for (const tool of [
       WindowLevelTool,
+      RegionWindowTool,
+      ScaleOverlayTool,
       PanTool,
       ZoomTool,
       MagnifyTool,
       StackScrollTool,
-      LengthTool,
-      AngleTool,
-      EllipticalROITool,
-      ProbeTool,
-      ReferenceLinesTool,
+      ...MEASUREMENT_TOOLS.map((tool) => tool.Class as Parameters<typeof addTool>[0]),
       CrosshairsTool,
       TrackballRotateTool,
       OrientationMarkerTool,
       VolumeShiftTool,
+      Cursor3DTool,
+      SegmentEditTool,
     ]) {
       addTool(tool)
     }
     createToolGroups()
+    useSettings.subscribe((state, previous) => state.input !== previous.input && applyInputBindings(state.input))
+    installMeasurementEvents()
+    installSphereVolumes()
+    installWindowSync()
     registerVolumeLoaders()
     createSynchronizers()
+
+    // Lets the e2e tests inspect viewport state (dev server and `--mode e2e` builds only).
+    if (import.meta.env.DEV || import.meta.env.MODE === 'e2e') Object.assign(window, { __dicomlensEngine: createRenderingEngine })
   })()
   return initPromise
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import {
   Enums,
   cache,
@@ -7,21 +8,25 @@ import {
   imageLoader,
   metaData,
   setVolumesForViewports,
+  utilities,
+  ProgressiveRetrieveImages,
   volumeLoader,
   type Types,
 } from '@cornerstonejs/core'
-import { ToolGroupManager } from '@cornerstonejs/tools'
+import { CrosshairsTool, ToolGroupManager } from '@cornerstonejs/tools'
 import { getImagePlane } from '../dicom/imagePlaneMetadata'
 import type { Series } from '../dicom/types'
 import { MPR_TOOL_GROUP_ID } from './tools'
-import { RENDERING_ENGINE_ID, createRenderingEngine } from './viewer'
+import { MPR_AXIAL_ID, MPR_CORONAL_ID, MPR_SAGITTAL_ID, RENDERING_ENGINE_ID } from './constants'
+import { createRenderingEngine } from './viewer'
+import { registerViewport, unregisterViewport } from './viewportRegistry'
 
 const VOLUME_SCHEME = 'cornerstoneStreamingImageVolume'
 
 export const MPR_VIEWPORTS = [
-  { id: 'mpr-axial', label: 'Axial', orientation: Enums.OrientationAxis.AXIAL },
-  { id: 'mpr-sagittal', label: 'Sagittal', orientation: Enums.OrientationAxis.SAGITTAL },
-  { id: 'mpr-coronal', label: 'Coronal', orientation: Enums.OrientationAxis.CORONAL },
+  { id: MPR_AXIAL_ID, label: 'viewport.axial', orientation: Enums.OrientationAxis.AXIAL },
+  { id: MPR_SAGITTAL_ID, label: 'viewport.sagittal', orientation: Enums.OrientationAxis.SAGITTAL },
+  { id: MPR_CORONAL_ID, label: 'viewport.coronal', orientation: Enums.OrientationAxis.CORONAL },
 ] as const
 
 export type SlabMode = 'mip' | 'minip' | 'avg'
@@ -37,27 +42,27 @@ export function registerVolumeLoaders() {
   const loader = cornerstoneStreamingImageVolumeLoader as unknown as Types.VolumeLoaderFn
   volumeLoader.registerVolumeLoader(VOLUME_SCHEME, loader)
   volumeLoader.registerUnknownVolumeLoader(loader)
+  // Large volumes appear coarse first: every 4th slice loads early (neighbours
+  // stand in for the rest), then the gaps fill in.
+  utilities.imageRetrieveMetadataProvider.add('volume', ProgressiveRetrieveImages.interleavedRetrieveStages)
 }
 
 export function getMprViewport(viewportId: string): Types.IVolumeViewport | undefined {
   return getRenderingEngine(RENDERING_ENGINE_ID)?.getViewport(viewportId) as Types.IVolumeViewport | undefined
 }
 
-/** Why a series cannot be reconstructed, or null when MPR is possible. */
+/** Why a series cannot be reconstructed (an i18n key), or null when MPR is possible. */
 export function mprUnsupportedReason(series: Series): string | null {
-  if (!series.hasOrientation) return 'This series has no orientation information.'
-  if (series.images.length < 3) return 'MPR needs a series with at least 3 slices.'
-  if (series.images.some((image) => image.imageId.includes('?frame='))) {
-    return 'Multi-frame series are not supported in MPR yet.'
-  }
+  // Enhanced multi-frame objects work too: each frame has its own position.
+  if (!series.hasOrientation) return 'volume.noOrientation'
+  if (series.images.length < 3) return 'volume.tooFewSlices'
+  if (series.kind !== 'image') return 'volume.notImages'
   const locations = new Set(series.images.map((image) => image.sliceLocation))
-  if (locations.has(null) || locations.size < series.images.length) {
-    return 'Slices must have distinct positions to build a volume.'
-  }
+  if (locations.has(null) || locations.size < series.images.length) return 'volume.duplicatePositions'
   return null
 }
 
-const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.seriesInstanceUID}`
+export const volumeIdFor = (series: Series) => `${VOLUME_SCHEME}:${series.id}`
 
 export function isVolumeCached(series: Series) {
   return !!cache.getVolume(volumeIdFor(series))
@@ -69,11 +74,34 @@ export function estimateVolumeBytes(series: Series) {
   return plane ? plane.rows * plane.columns * series.images.length * 2 : 0
 }
 
-/** Budget above which building a volume asks for confirmation; smaller on phones. */
-export function volumeMemoryBudget() {
+/** Phones, tablets and low-memory devices get smaller memory budgets. */
+/**
+ * Asks before loading a volume larger than this device's budget (phones and
+ * small-memory devices have a lower one). True when it may load.
+ */
+export function confirmVolumeMemory(series: Series, name: string) {
+  const bytes = estimateVolumeBytes(series)
+  if (isVolumeCached(series) || bytes <= volumeMemoryBudget()) return true
+  return window.confirm(t('messages.volumeMemory', { mb: Math.round(bytes / 1024 / 1024), name }))
+}
+
+export function isSmallDevice() {
   const deviceMemoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
-  const smallDevice = window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)
-  return (smallDevice ? 192 : 512) * 1024 * 1024
+  return window.matchMedia('(max-width: 1023px)').matches || (deviceMemoryGb !== undefined && deviceMemoryGb <= 4)
+}
+
+/** Budget above which building a volume asks for confirmation. */
+export function volumeMemoryBudget() {
+  return (isSmallDevice() ? 192 : 512) * 1024 * 1024
+}
+
+/**
+ * Decoded images and volumes kept in memory. When the cache is full,
+ * Cornerstone drops the least recently used images and decodes them again
+ * when they are shown; volumes must fit, so the limit stays above the volume budget.
+ */
+export function imageCacheBudget() {
+  return (isSmallDevice() ? 384 : 1536) * 1024 * 1024
 }
 
 let webgl2: boolean | null = null
@@ -117,17 +145,19 @@ export async function loadVolume(series: Series, onProgress: (fraction: number) 
   return volumeId
 }
 
-export function mountMprViewport(viewportId: string, orientation: Enums.OrientationAxis, element: HTMLDivElement) {
+export function mountMprViewport(viewportId: string, orientation: Enums.OrientationAxis, element: HTMLDivElement, toolGroupId = MPR_TOOL_GROUP_ID) {
   createRenderingEngine().enableElement({
     viewportId,
     type: Enums.ViewportType.ORTHOGRAPHIC,
     element,
     defaultOptions: { orientation, background: [0, 0, 0] },
   })
-  ToolGroupManager.getToolGroup(MPR_TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  ToolGroupManager.getToolGroup(toolGroupId)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  registerViewport(viewportId, 'mpr')
 }
 
 export function unmountMprViewport(viewportId: string) {
+  unregisterViewport(viewportId)
   getRenderingEngine(RENDERING_ENGINE_ID)?.disableElement(viewportId)
 }
 
@@ -169,4 +199,11 @@ export function setSlab(mode: SlabMode, thicknessMm: number) {
     }
     viewport.render()
   }
+}
+
+/** Where the crosshairs (the three MPR planes) cross, once they are drawn. */
+export function crosshairCenter(): number[] | null {
+  const crosshairs = ToolGroupManager.getToolGroup(MPR_TOOL_GROUP_ID)?.getToolInstance(CrosshairsTool.toolName) as { toolCenter?: number[] } | undefined
+  const center = crosshairs?.toolCenter
+  return center && center.some((v) => v !== 0) ? [...center] : null
 }

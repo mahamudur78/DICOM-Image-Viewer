@@ -1,32 +1,30 @@
-import { useState } from 'react'
-import { viewportIdAt } from '../cornerstone/viewer'
-import { SERIES_DRAG_TYPE, type DisplaySet } from '../dicom/types'
-import type { Layout } from './layouts'
+import { lazy, Suspense, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { viewportIdAt } from '../cornerstone/constants'
+import { SERIES_DRAG_TYPE, type SeriesKind } from '../dicom/types'
+import { setActiveCell, setCellIndex, showSeriesInCell, toggleMaximize, useViewer } from '../store/viewerStore'
 import { Viewport } from './Viewport'
 
-interface ViewportGridProps {
-  layout: Layout
-  cells: (DisplaySet | null)[]
-  activeCell: number
-  maximizedCell: number | null
-  onActivate: (cell: number) => void
-  onToggleMaximize: (cell: number) => void
-  onDropSeries: (cell: number, seriesUID: string) => void
-  onIndexChange: (cell: number, index: number) => void
-  onError: (message: string) => void
+// Downloaded only when such a series is shown (pdf.js alone is several hundred KB).
+const VIEWERS = {
+  video: lazy(() => import('./VideoViewer')),
+  pdf: lazy(() => import('./PdfViewer')),
+  sr: lazy(() => import('./SrViewer')),
+  rtplan: lazy(() => import('./RtPlanViewer')),
+  waveform: lazy(() => import('./WaveformViewer')),
+  sm: lazy(() => import('./SlideViewer')),
+  // Objects applied to images (segmentations, structures, dose, maps, key images, presentation states).
+  object: lazy(() => import('./ObjectViewer')),
 }
 
-export function ViewportGrid({
-  layout,
-  cells,
-  activeCell,
-  maximizedCell,
-  onActivate,
-  onToggleMaximize,
-  onDropSeries,
-  onIndexChange,
-  onError,
-}: ViewportGridProps) {
+const viewerFor = (kind: Exclude<SeriesKind, 'image'>) => (kind in VIEWERS ? (kind as keyof typeof VIEWERS) : 'object')
+
+export function ViewportGrid() {
+  const { t } = useTranslation()
+  const layout = useViewer((s) => s.layout)
+  const cells = useViewer((s) => s.cells)
+  const activeCell = useViewer((s) => s.activeCell)
+  const maximizedCell = useViewer((s) => s.maximizedCell)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const visibleCells =
     maximizedCell !== null ? [maximizedCell] : Array.from({ length: layout.rows * layout.cols }, (_, i) => i)
@@ -57,27 +55,38 @@ export function ViewportGrid({
               event.preventDefault()
               event.stopPropagation()
               setDropTarget(null)
-              onDropSeries(cell, seriesUID)
+              showSeriesInCell(cell, seriesUID)
             }}
           >
-            {displaySet ? (
+            {displaySet && displaySet.series.kind !== 'image' ? (
+              <Suspense fallback={<div className="grid h-full place-items-center bg-black text-sm text-slate-500">{t('panels.loading')}</div>}>
+                <DocumentViewer
+                  kind={displaySet.series.kind}
+                  viewportId={viewportIdAt(cell)}
+                  cell={cell}
+                  displaySet={displaySet}
+                  active={cell === activeCell}
+                  onActivate={() => setActiveCell(cell)}
+                  onToggleMaximize={() => toggleMaximize(cell)}
+                />
+              </Suspense>
+            ) : displaySet ? (
               <Viewport
                 viewportId={viewportIdAt(cell)}
                 displaySet={displaySet}
                 active={cell === activeCell}
-                onActivate={() => onActivate(cell)}
-                onToggleMaximize={() => onToggleMaximize(cell)}
-                onIndexChange={(index) => onIndexChange(cell, index)}
-                onError={onError}
+                onActivate={() => setActiveCell(cell)}
+                onToggleMaximize={() => toggleMaximize(cell)}
+                onIndexChange={(index) => setCellIndex(cell, index)}
               />
             ) : (
               <button
-                onClick={() => onActivate(cell)}
+                onClick={() => setActiveCell(cell)}
                 className={`grid h-full w-full place-items-center bg-black text-sm text-slate-500 outline-1 -outline-offset-1 ${
                   cell === activeCell ? 'outline-2 outline-sky-500' : 'outline-slate-800'
                 }`}
               >
-                Drag a series here
+                {t('viewport.dragSeriesHere')}
               </button>
             )}
             {dropTarget === cell && (
@@ -88,4 +97,10 @@ export function ViewportGrid({
       })}
     </div>
   )
+}
+
+/** The viewer for a video, PDF, report or other non-image object. */
+function DocumentViewer({ kind, ...props }: { kind: Exclude<SeriesKind, 'image'> } & React.ComponentProps<typeof VIEWERS.sr>) {
+  const Viewer = VIEWERS[viewerFor(kind)] as typeof VIEWERS.sr
+  return <Viewer {...props} />
 }

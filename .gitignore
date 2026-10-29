@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 public/wasm
 .playwright-mcp
+
+# Playwright test runner
+/e2e/.data
+/test-results
+/playwright-report
+/dist-e2e

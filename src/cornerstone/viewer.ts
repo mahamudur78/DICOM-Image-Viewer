@@ -1,28 +1,9 @@
 import { Enums, RenderingEngine, getRenderingEngine, type Types } from '@cornerstonejs/core'
 import { ToolGroupManager } from '@cornerstonejs/tools'
+import { RENDERING_ENGINE_ID } from './constants'
 import { setSyncSource } from './sync'
+import { registerViewport, unregisterViewport } from './viewportRegistry'
 import { TOOL_GROUP_ID } from './tools'
-
-export const RENDERING_ENGINE_ID = 'main-rendering-engine'
-export const MAX_VIEWPORTS = 4
-
-export const viewportIdAt = (cell: number) => `viewport-${cell}`
-
-export interface WindowPreset {
-  label: string
-  width: number
-  center: number
-}
-
-/** Common CT window presets (Hounsfield units). */
-export const CT_PRESETS: WindowPreset[] = [
-  { label: 'Soft tissue', width: 400, center: 40 },
-  { label: 'Lung', width: 1500, center: -600 },
-  { label: 'Bone', width: 1800, center: 400 },
-  { label: 'Brain', width: 80, center: 40 },
-  { label: 'Abdomen', width: 350, center: 50 },
-  { label: 'Liver', width: 150, center: 30 },
-]
 
 export function createRenderingEngine() {
   return getRenderingEngine(RENDERING_ENGINE_ID) ?? new RenderingEngine(RENDERING_ENGINE_ID)
@@ -42,6 +23,8 @@ export function getViewport(viewportId: string): Types.IStackViewport | undefine
  */
 const rememberedIndex = new Map<string, number>()
 const rememberKey = (viewportId: string, seriesUID: string) => `${viewportId}|${seriesUID}`
+/** The last index of a series in any viewport, for when it moves to another cell. */
+const seriesKey = (seriesUID: string) => `series|${seriesUID}`
 
 export function mountViewport(viewportId: string, element: HTMLDivElement) {
   createRenderingEngine().enableElement({
@@ -51,6 +34,7 @@ export function mountViewport(viewportId: string, element: HTMLDivElement) {
     defaultOptions: { background: [0, 0, 0] },
   })
   ToolGroupManager.getToolGroup(TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  registerViewport(viewportId, 'stack')
 }
 
 /**
@@ -62,7 +46,8 @@ export function setActiveSource(sourceViewportId: string | null) {
   if (!engine) return
   const mounted = engine
     .getViewports()
-    .filter((viewport) => viewport.type === Enums.ViewportType.STACK)
+    // Grid cells only (not the hidden viewport used for exports).
+    .filter((viewport) => viewport.type === Enums.ViewportType.STACK && viewport.id.startsWith('viewport-'))
     .map((viewport) => viewport.id)
   const source = sourceViewportId && mounted.includes(sourceViewportId) ? sourceViewportId : null
   setSyncSource(RENDERING_ENGINE_ID, mounted, source)
@@ -71,6 +56,7 @@ export function setActiveSource(sourceViewportId: string | null) {
 
 /** Disabling the element also removes it from its tool group and synchronizers. */
 export function unmountViewport(viewportId: string) {
+  unregisterViewport(viewportId)
   getRenderingEngine(RENDERING_ENGINE_ID)?.disableElement(viewportId)
 }
 
@@ -82,13 +68,30 @@ export async function showStack(viewportId: string, seriesUID: string, imageIds:
   const viewport = getViewport(viewportId)
   if (!viewport || imageIds.length === 0) return
   // Default to the middle of the stack, which is usually the most useful slice.
-  const index = rememberedIndex.get(rememberKey(viewportId, seriesUID)) ?? Math.floor(imageIds.length / 2)
+  const index = rememberedIndex.get(rememberKey(viewportId, seriesUID)) ?? rememberedIndex.get(seriesKey(seriesUID)) ?? Math.floor(imageIds.length / 2)
   await viewport.setStack(imageIds, Math.min(index, imageIds.length - 1))
+  // A new series starts fitted (setStack already resets window and invert); its
+  // last view, if any, is restored after.
+  viewport.resetCamera()
+  ensureVisibleWindow(viewportId)
   viewport.render()
+}
+
+/**
+ * A uniform image (e.g. a blank frame) has min = max, so its default window
+ * has zero width, which renders nothing useful and makes vtk log errors.
+ */
+export function ensureVisibleWindow(viewportId: string) {
+  const viewport = getViewport(viewportId)
+  const range = viewport?.getProperties().voiRange
+  if (!viewport || !range || range.upper - range.lower >= 1) return
+  const center = (range.upper + range.lower) / 2
+  viewport.setProperties({ voiRange: { lower: center - 0.5, upper: center + 0.5 } })
 }
 
 export function rememberIndex(viewportId: string, seriesUID: string, index: number) {
   rememberedIndex.set(rememberKey(viewportId, seriesUID), index)
+  rememberedIndex.set(seriesKey(seriesUID), index)
 }
 
 export function forgetRememberedIndexes() {
@@ -148,13 +151,36 @@ export function resetView(viewportId: string) {
   viewport.render()
 }
 
-/** Downloads the current image (without measurement overlays) as PNG. */
-export function downloadPng(viewportId: string, fileName: string) {
+/**
+ * Downloads the current image (without measurement overlays) as PNG. A CSS
+ * filter (the viewport's image filter) is applied to the export too; browsers
+ * without canvas filters (Safari) export the unfiltered image. Redacted areas
+ * (polygons in CSS pixels) are painted black.
+ */
+export function downloadPng(viewportId: string, fileName: string, cssFilter = '', redactions: Types.Point2[][] = []) {
   const viewport = getViewport(viewportId)
   if (!viewport) return
   viewport.render()
+  let canvas = viewport.getCanvas()
+  if (cssFilter || redactions.length) {
+    const copy = document.createElement('canvas')
+    copy.width = canvas.width
+    copy.height = canvas.height
+    const context = copy.getContext('2d')!
+    context.filter = cssFilter || 'none'
+    context.drawImage(canvas, 0, 0)
+    context.filter = 'none'
+    const scale = canvas.width / (canvas.clientWidth || canvas.width)
+    context.fillStyle = '#000'
+    for (const polygon of redactions) {
+      context.beginPath()
+      polygon.forEach(([x, y], i) => (i ? context.lineTo(x * scale, y * scale) : context.moveTo(x * scale, y * scale)))
+      context.fill()
+    }
+    canvas = copy
+  }
   const link = document.createElement('a')
-  link.href = viewport.getCanvas().toDataURL('image/png')
+  link.href = canvas.toDataURL('image/png')
   link.download = fileName
   link.click()
 }
