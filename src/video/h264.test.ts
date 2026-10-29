@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import dicomParser from 'dicom-parser'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { h264ToMp4, isMp4, videoStream } from './dicomVideo'
 import { avcCodecString, avcDecoderConfig, parseAnnexB, presentationSlots, splitNalUnits } from './h264'
 
@@ -62,8 +62,11 @@ const hasFfmpeg = (() => {
 })()
 
 describe.skipIf(!existsSync(SAMPLE))('a real H.264 DICOM video', () => {
-  const dataSet = dicomParser.parseDicom(new Uint8Array(readFileSync(SAMPLE)))
-  const stream = videoStream(dataSet)
+  // Read in beforeAll: a skipped describe's body still runs during collection.
+  let stream: Uint8Array
+  beforeAll(() => {
+    stream = videoStream(dicomParser.parseDicom(new Uint8Array(readFileSync(SAMPLE))))
+  })
 
   it('is an Annex-B stream of 50 frames starting with a keyframe', () => {
     expect(isMp4(stream)).toBe(false)
