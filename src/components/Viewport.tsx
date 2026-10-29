@@ -24,6 +24,7 @@ import { filterElementId, useViewportDisplay } from '../store/viewportDisplaySto
 import { cellOfViewport, useViewer } from '../store/viewerStore'
 import { CineControls } from './CineControls'
 import { ComparisonLayer } from './ComparisonLayer'
+import { FusionLayer } from './FusionLayer'
 import { DicomOverlayLayer } from './DicomOverlayLayer'
 import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useCinePlayback } from './useCinePlayback'
@@ -198,6 +199,7 @@ export function Viewport({
         }}
         className="absolute inset-0"
       />
+      {!loading && <FusionLayer viewportId={viewportId} />}
       {display.dicomOverlays && <DicomOverlayLayer viewportId={viewportId} element={element} />}
       {!loading && <ComparisonLayer viewportId={viewportId} />}
       {unlinked && (

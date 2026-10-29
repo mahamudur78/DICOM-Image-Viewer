@@ -17,6 +17,7 @@ import { registerImagePlaneProvider } from '../dicom/imagePlaneMetadata'
 import { Cursor3DTool } from '../comparison/cursor3d'
 import { installWindowSync } from '../comparison/multiWindow'
 import { installMeasurementEvents } from '../measurements/manage'
+import { installSphereVolumes } from '../functional/sphereVolume'
 import { MEASUREMENT_TOOLS } from '../measurements/tools'
 import { imageCacheBudget, registerVolumeLoaders } from './mpr'
 import { createSynchronizers } from './sync'
@@ -63,6 +64,7 @@ export function initCornerstone(): Promise<void> {
     }
     createToolGroups()
     installMeasurementEvents()
+    installSphereVolumes()
     installWindowSync()
     registerVolumeLoaders()
     createSynchronizers()

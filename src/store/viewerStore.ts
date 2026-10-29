@@ -17,6 +17,10 @@ import type { DisplaySet, Series, SortMode, Study } from '../dicom/types'
 export interface VolumeView {
   mode: Exclude<ViewMode, 'grid'>
   displaySet: DisplaySet
+  /** PET/CT layout: the PET shown with the CT (displaySet) in MPR mode. */
+  petct?: DisplaySet
+  /** 4D: one series per phase of a dynamic series, and the phase shown. */
+  phases?: { series: Series[]; index: number }
 }
 
 export interface Slab {
@@ -25,7 +29,7 @@ export interface Slab {
 }
 
 /** Side panels; later phases add measurements, segmentation, reports, … */
-export type PanelId = 'tags' | 'measurements' | 'volume3d'
+export type PanelId = 'tags' | 'measurements' | 'volume3d' | 'fusion' | 'tic' | 'dsa'
 
 /**
  * Session state of the viewer: what is loaded and how it is laid out.
@@ -201,6 +205,16 @@ export function showVolumeView(view: VolumeView, defaultTool: PrimaryTool) {
         preset: defaultPresetFor(view.displaySet.series.modality),
       }),
     }
+  })
+}
+
+/** 4D: shows another phase of the dynamic series, keeping the view's settings. */
+export function setVolumePhase(index: number) {
+  set((state) => {
+    const view = state.volumeView
+    const series = view?.phases?.series[index]
+    if (!view?.phases || !series || index === view.phases.index) return state
+    return { volumeView: { ...view, displaySet: { ...view.displaySet, series }, phases: { ...view.phases, index } } }
   })
 }
 

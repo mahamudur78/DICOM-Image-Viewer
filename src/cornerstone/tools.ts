@@ -32,6 +32,7 @@ import {
   PolygonTool,
   PolylineTool,
   RedactionTool,
+  SphereROITool,
   SpineLabelTool,
   toolConfiguration,
 } from '../measurements/tools'
@@ -45,6 +46,8 @@ export const TOOL_GROUP_ID = 'main-tool-group'
 export const MPR_TOOL_GROUP_ID = 'mpr-tool-group'
 /** Tool group of the 3D volume rendering viewport. */
 export const VR_TOOL_GROUP_ID = 'vr-tool-group'
+/** Tool group of the PET/CT layout's PET and fusion rows (no crosshairs: they follow the CT row). */
+export const PETCT_TOOL_GROUP_ID = 'petct-tool-group'
 
 /** Name of the custom preset-shift tool (defined in volume3d.ts to keep vtk details there). */
 export const VOLUME_SHIFT_TOOL = 'VolumeShift'
@@ -69,6 +72,7 @@ export const PRIMARY_TOOLS = {
   probe: ProbeTool.toolName,
   rectangle: RectangleROITool.toolName,
   circle: CircleROITool.toolName,
+  sphere: SphereROITool.toolName,
   polygon: PolygonTool.toolName,
   polyline: PolylineTool.toolName,
   curve: CurveTool.toolName,
@@ -96,6 +100,7 @@ export const MEASUREMENTS: PrimaryTool[] = [
   'probe',
   'rectangle',
   'circle',
+  'sphere',
   'polygon',
   'polyline',
   'curve',
@@ -157,6 +162,15 @@ export function createToolGroups() {
   for (const id of [TOOL_GROUP_ID, MPR_TOOL_GROUP_ID]) {
     ToolGroupManager.getToolGroup(id)!.setToolConfiguration(RegionWindowTool.toolName, { minWindowWidth: 0.1 })
   }
+
+  // PET/CT rows: window, pan, zoom and scroll; their planes follow the CT row.
+  ToolGroupManager.destroyToolGroup(PETCT_TOOL_GROUP_ID)
+  const petct = ToolGroupManager.createToolGroup(PETCT_TOOL_GROUP_ID)!
+  for (const tool of [WindowLevelTool.toolName, PanTool.toolName, ZoomTool.toolName, StackScrollTool.toolName]) petct.addTool(tool)
+  petct.setToolActive(WindowLevelTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] })
+  petct.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] })
+  petct.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] })
+  petct.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] })
 
   // 3D: the wheel zooms (there are no slices to scroll), and the cube shows orientation.
   const vr = setupToolGroup(VR_TOOL_GROUP_ID)

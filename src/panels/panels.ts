@@ -25,4 +25,19 @@ export const PANELS: Record<PanelId, PanelDefinition> = {
     title: 'measure.panelTitle',
     component: lazy(() => import('../components/MeasurementPanel').then((m) => ({ default: m.MeasurementPanel }))),
   },
+  fusion: {
+    id: 'fusion',
+    title: 'fusion.panelTitle',
+    component: lazy(() => import('../components/FusionPanel').then((m) => ({ default: m.FusionPanel }))),
+  },
+  tic: {
+    id: 'tic',
+    title: 'tic.panelTitle',
+    component: lazy(() => import('../components/TicPanel').then((m) => ({ default: m.TicPanel }))),
+  },
+  dsa: {
+    id: 'dsa',
+    title: 'dsa.panelTitle',
+    component: lazy(() => import('../components/DsaPanel').then((m) => ({ default: m.DsaPanel }))),
+  },
 }

@@ -15,6 +15,10 @@ export interface ImageEntry {
   frame: number
   /** SOP Instance UID of the file, used to find images that reports and key objects refer to. */
   sopInstanceUID: string
+  /** Temporal Position Identifier (0020,0100) of dynamic series. */
+  temporalPosition?: number
+  /** Trigger Time (0018,1060), ms. */
+  triggerTime?: number
 }
 
 /** How a series is displayed. */

@@ -50,6 +50,7 @@ import { DEFAULT_KEYMAP } from './keymap'
 import { exportCommands } from './exportCommands'
 import { reformatCommands } from './reformatCommands'
 import { measureCommands } from './measureCommands'
+import { functionalCommands } from './functionalCommands'
 import {
   selectMode,
   selectTargetViewportId,
@@ -96,6 +97,7 @@ export type CommandGroup =
   | 'compare'
   | 'export'
   | 'reformat'
+  | 'functional'
 
 export interface Command {
   id: string
@@ -153,6 +155,7 @@ const TOOLS: { tool: PrimaryTool; icon?: string }[] = [
     [
       'rectangle',
       'circle',
+      'sphere',
       'polygon',
       'polyline',
       'curve',
@@ -790,6 +793,7 @@ const ALL_COMMANDS: Command[] = [
   ...compareCommands,
   ...exportCommands,
   ...reformatCommands,
+  ...functionalCommands,
 ]
 
 /** Every command with its keyboard shortcuts from the keymap. */

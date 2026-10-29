@@ -1,6 +1,6 @@
 # DicomLens: সম্পূর্ণ Feature রোডম্যাপ (ফেজ ও টাস্ক)
 
-> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৬ সম্পন্ন, ফেজ ৭ বাকি
+> তারিখ: 2026-10-28 · স্ট্যাটাস: ফেজ ০–৭ সম্পন্ন, ফেজ ৮ বাকি
 > ভিত্তি: [DICOM_VIEWER_FEATURE_STUDY.md](DICOM_VIEWER_FEATURE_STUDY.md) · আগের কাজ: [DICOM_VIEWER_PLAN.md](DICOM_VIEWER_PLAN.md), [3D_VR_PLAN.md](3D_VR_PLAN.md)
 
 ## লক্ষ্য
@@ -248,33 +248,33 @@
 ## ফেজ ৭: Fusion ও ফাংশনাল ইমেজিং
 
 **Fusion**
-- [ ] **PET-CT fusion:** CT-র উপর PET colormap, opacity slider, threshold
-- [ ] PET-MR, SPECT-CT
-- [ ] **MR fusion:** T1/T2-এর উপর DWI/ADC বা অন্য সিরিজ
-- [ ] Fusion 2D stack, MPR আর 3D তিনটাতেই
-- [ ] ভিন্ন frame of reference হলে হাতে registration (সরানো/ঘোরানো) — ঐচ্ছিক স্বয়ংক্রিয় registration পরে
-- [ ] **PET/CT hanging layout** (OHIF-এর মতো 3×3: CT, PET, fusion × তিন plane + MIP)
-- [ ] **PET MIP ঘোরানো** (rotating MIP)
-- [ ] **SUV হিসাব** (`@cornerstonejs/calculate-suv`): SUVbw, SUVlbm, SUVbsa; decay correction যাচাই
-- [ ] ROI-তে SUVmax, SUVmean, SUVpeak; 3D ROI (sphere/"3D ball")
-- [ ] **TMTV / MTV** (মোট metabolic tumor volume, threshold-ভিত্তিক) — ফেজ ৯-এর segmentation দরকার, তাই সেখানে শেষ হবে
+- [x] **PET-CT fusion:** CT-র উপর PET colormap, opacity slider, threshold
+- [x] PET-MR, SPECT-CT
+- [x] **MR fusion:** T1/T2-এর উপর DWI/ADC বা অন্য সিরিজ
+- [x] Fusion 2D stack, MPR আর 3D তিনটাতেই
+- [x] ভিন্ন frame of reference হলে হাতে registration (সরানো/ঘোরানো) — ঐচ্ছিক স্বয়ংক্রিয় registration পরে
+- [x] **PET/CT hanging layout** (OHIF-এর মতো 3×3: CT, PET, fusion × তিন plane + MIP)
+- [x] **PET MIP ঘোরানো** (rotating MIP)
+- [x] **SUV হিসাব** (`@cornerstonejs/calculate-suv`): SUVbw, SUVlbm, SUVbsa; decay correction যাচাই
+- [x] ROI-তে SUVmax, SUVmean, SUVpeak; 3D ROI (sphere/"3D ball")
+- [ ] ~~**TMTV / MTV** (মোট metabolic tumor volume, threshold-ভিত্তিক) — ফেজ ৯-এর segmentation দরকার, তাই সেখানে শেষ হবে~~ → ফেজ ৯
 
 **Time-intensity curve (TIC)**
-- [ ] Dynamic/multi-phase সিরিজ চেনা (temporal position)
-- [ ] ROI-র mean সব phase-এ → চার্ট
-- [ ] Curve type: Ia, Ib, II (plateau), III (washout); peak, time-to-peak, wash-in/wash-out হার
-- [ ] একাধিক ROI-র curve একসাথে, CSV export
+- [x] Dynamic/multi-phase সিরিজ চেনা (temporal position)
+- [x] ROI-র mean সব phase-এ → চার্ট
+- [x] Curve type: Ia, Ib, II (plateau), III (washout); peak, time-to-peak, wash-in/wash-out হার
+- [x] একাধিক ROI-র curve একসাথে, CSV export
 
 **DSA (digital subtraction angiography)**
-- [ ] Mask frame বাছাই (ডিফল্ট প্রথম frame)
-- [ ] Live frame থেকে mask বিয়োগ
-- [ ] Auto pixel shift (নির্বাচিত অংশে মিলিয়ে) আর manual pixel shift
-- [ ] Split mask (ভিন্ন অংশে ভিন্ন mask), magic mask
-- [ ] Landmarking (মাস্কের হালকা অংশ ফেরত আনা)
+- [x] Mask frame বাছাই (ডিফল্ট প্রথম frame)
+- [x] Live frame থেকে mask বিয়োগ
+- [x] Auto pixel shift (নির্বাচিত অংশে মিলিয়ে) আর manual pixel shift
+- [x] Split mask (ভিন্ন অংশে ভিন্ন mask), magic mask
+- [x] Landmarking (মাস্কের হালকা অংশ ফেরত আনা)
 
 **4D**
-- [ ] 4D (সময় + volume, যেমন কার্ডিয়াক CT, perfusion) volume হিসেবে লোড, সময়ের slider ও cine
-- [ ] Definition of Done পূরণ
+- [x] 4D (সময় + volume, যেমন কার্ডিয়াক CT, perfusion) volume হিসেবে লোড, সময়ের slider ও cine
+- [x] Definition of Done পূরণ (বিস্তারিত: [PHASE_7_FUSION_FUNCTIONAL_PLAN.md](PHASE_7_FUSION_FUNCTIONAL_PLAN.md))
 
 ## ফেজ ৮: বিশেষ DICOM object
 

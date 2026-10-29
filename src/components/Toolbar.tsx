@@ -22,6 +22,7 @@ import { selectCurrentDisplaySet, setLayout, setPreset, setSlab, useViewer } fro
 import { CommandMenu, type MenuSection } from './CommandMenu'
 import { FilePickers } from './FilePickers'
 import { LayoutIcon } from './LayoutIcon'
+import { PhaseControls } from './PhaseControls'
 import { MAX_LAYOUT_SIZE, MORE_LAYOUTS, clampLayout, type Layout } from './layouts'
 import { useViewportVoi } from './useViewportVoi'
 
@@ -225,7 +226,7 @@ const MEASURE_MENU: MenuSection[] = [
     title: 'menus.lines',
     commands: ['tool.length', 'tool.polyline', 'tool.angle', 'tool.cobb', 'tool.bidirectional', 'tool.deviation', 'tool.ratio', 'tool.ellipsoid'],
   },
-  { title: 'menus.areas', commands: ['tool.rectangle', 'tool.ellipse', 'tool.circle', 'tool.polygon', 'tool.curve', 'tool.freehand', 'tool.probe'] },
+  { title: 'menus.areas', commands: ['tool.rectangle', 'tool.ellipse', 'tool.circle', 'tool.sphere', 'tool.polygon', 'tool.curve', 'tool.freehand', 'tool.probe'] },
   { title: 'menus.annotate', commands: ['tool.arrow', 'tool.label', 'tool.spine', 'measure.spineStart', 'tool.pencil', 'tool.redaction'] },
   { title: 'menus.calibration', commands: ['tool.calibrate', 'measure.clearCalibration', 'measure.unitMm', 'measure.unitCm'] },
   {
@@ -260,6 +261,11 @@ const COMPARE_MENU: MenuSection[] = [
 const REFORMAT_MENU: MenuSection[] = [
   { title: 'menus.planes', commands: ['mpr.resetPlanes', 'mpr.newSeries'] },
   { title: 'menus.cpr', commands: ['mpr.cprStart', 'mpr.cprUndo', 'mpr.cprMake', 'mpr.cprClear'] },
+]
+
+const FUNCTIONAL_MENU: MenuSection[] = [
+  { title: 'menus.fusion', commands: ['panel.fusion', 'functional.petct', 'tool.sphere'] },
+  { title: 'menus.dynamic', commands: ['panel.tic', 'functional.mpr4d', 'panel.dsa'] },
 ]
 
 const EXPORT_MENU: MenuSection[] = [
@@ -430,6 +436,8 @@ export function Toolbar() {
       mode === 'mpr' && <SlabControls key="slab" />,
       mode === 'mpr' && <MenuButton key="reformat-menu" label="menus.reformat" icon={t('menus.reformatShort')} sections={REFORMAT_MENU} />,
       show3dControls && <PresetSelect key="preset" modality={modality} />,
+      mode !== 'grid' && <PhaseControls key="phases" />,
+      <MenuButton key="functional-menu" label="menus.functional" icon={t('menus.functionalShort')} sections={FUNCTIONAL_MENU} />,
     ],
     mode === 'grid' ? [...groupButtons(['layout'], ctx), <LayoutPicker key="layout-picker" />] : [],
     mode === 'grid'

@@ -134,14 +134,14 @@ export async function loadVolume(series: Series, onProgress: (fraction: number) 
   return volumeId
 }
 
-export function mountMprViewport(viewportId: string, orientation: Enums.OrientationAxis, element: HTMLDivElement) {
+export function mountMprViewport(viewportId: string, orientation: Enums.OrientationAxis, element: HTMLDivElement, toolGroupId = MPR_TOOL_GROUP_ID) {
   createRenderingEngine().enableElement({
     viewportId,
     type: Enums.ViewportType.ORTHOGRAPHIC,
     element,
     defaultOptions: { orientation, background: [0, 0, 0] },
   })
-  ToolGroupManager.getToolGroup(MPR_TOOL_GROUP_ID)?.addViewport(viewportId, RENDERING_ENGINE_ID)
+  ToolGroupManager.getToolGroup(toolGroupId)?.addViewport(viewportId, RENDERING_ENGINE_ID)
   registerViewport(viewportId, 'mpr')
 }
 

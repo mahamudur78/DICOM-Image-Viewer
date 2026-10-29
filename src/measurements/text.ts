@@ -49,6 +49,15 @@ export function resultLines(result: MeasurementResult, imageId: string | undefin
     if (detailed && Number.isFinite(stats.median)) lines.push(t('measure.median', { value: value(stats.median, pixelUnit) }))
     if (detailed && stats.count) lines.push(t('measure.pixels', { count: stats.count }))
   }
+  if (result.peak !== undefined && Number.isFinite(result.peak)) lines.push(t('measure.peak', { value: value(result.peak, pixelUnit) }))
+  const sphere = result.sphere
+  if (sphere) {
+    const where = t(sphere.threeD ? 'measure.sphere3d' : 'measure.sphere2d')
+    lines.push(t('measure.sphereMax', { value: value(sphere.max, pixelUnit), where }))
+    lines.push(t('measure.sphereMean', { value: value(sphere.mean, pixelUnit) }))
+    if (Number.isFinite(sphere.peak)) lines.push(t('measure.spherePeak', { value: value(sphere.peak, pixelUnit) }))
+    if (sphere.threeD) lines.push(t('measure.volume', { value: formatVolume(sphere.volume * 1000, 'mm', unit) }))
+  }
   return lines
 }
 

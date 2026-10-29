@@ -18,7 +18,8 @@ const BUDGETS = {
   // All JS, including chunks that load only for MPR/3D or for particular
   // formats (pdf.js and its worker, ZIP, TIFF, MP4 muxing). Phase 1 raised it
   // from 1300 for those format chunks; none of them load for ordinary DICOM images.
-  total: 1900,
+  // Phase 7 raised it to 1950 for fusion, PET/CT, curves and DSA (mostly lazy panels).
+  total: 1950,
 }
 
 const assets = readdirSync(join(DIST, 'assets')).filter((name) => /\.m?js$/.test(name))

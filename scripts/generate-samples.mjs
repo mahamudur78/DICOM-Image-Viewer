@@ -17,6 +17,13 @@
 //   measure/    DX with Imager Pixel Spacing and magnification (ERMF), ultrasound with a
 //               calibrated region; both hold a 40 × 40 pixel square of value 1000 on 100
 //   compressed/ an RLE Lossless image (8-bit, 64 × 64): decompression and anonymizing compressed pixels
+//   fusion/     CT (64², 2 mm) and PET (32², 4 mm, SUV tags) of one patient in one frame of reference;
+//               a 10 mm lesion is warm on CT and hot on PET
+//   dynamic/    DCE MR: 3 slices × 6 phases (Temporal Position Identifier, Trigger Time), three lesions
+//               whose curves are persistent (I), plateau (II) and washout (III)
+//   dsa/        XA angiogram, 10 frames: frame 1 is the mask, a vessel fills from frame 3, and from
+//               frame 7 the patient has moved 2 pixels to the right
+//   4d/         4D CT: 4 phases × 12 slices with a sphere moving along x
 //   prior/      one patient, two CT studies a year apart (current/ and prior/), 20 axial
 //               slices each, in different frames of reference with positions 1000 mm apart;
 //               the first pixel of each slice is its instance number × 10
@@ -38,7 +45,7 @@ import {
 } from './dicom-writer.mjs'
 
 /** Bump when the samples change, so the e2e setup regenerates them. */
-export const SAMPLES_VERSION = '14'
+export const SAMPLES_VERSION = '15'
 
 const root = process.argv[2]
 if (!root) {
@@ -932,6 +939,226 @@ if (hasFfmpeg) {
       element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
     ],
   })
+}
+
+// --- fusion: CT and PET in one frame of reference ---------------------------------
+{
+  outDir = dir('fusion')
+  const studyUid = `${ROOT}.20`
+  const frameOfReference = `${ROOT}.20.200`
+  const slices = 24
+  const lesion = (x, y, z) => Math.hypot(x - 10, y + 8, z + 40) < 10
+  const common = (k) => [
+    element(0x0010, 0x0010, 'PN', 'Sample^Fusion'),
+    element(0x0010, 0x0020, 'LO', 'SAMPLE-FUSION'),
+    element(0x0010, 0x0040, 'CS', 'F'),
+    element(0x0010, 0x1020, 'DS', 1.65),
+    element(0x0010, 0x1030, 'DS', 60),
+    element(0x0008, 0x0020, 'DA', '20260105'),
+    ...study(studyUid, 'PET-CT'),
+    element(0x0020, 0x0013, 'IS', k + 1),
+    element(0x0020, 0x0037, 'DS', '1\\0\\0\\0\\1\\0'),
+    element(0x0020, 0x0052, 'UI', frameOfReference),
+    element(0x0018, 0x0050, 'DS', 4),
+  ]
+  for (let k = 0; k < slices; k++) {
+    const z = -k * 4
+    const ct = []
+    for (let y = 0; y < 64; y++)
+      for (let x = 0; x < 64; x++) {
+        const [wx, wy] = [-64 + x * 2, -64 + y * 2]
+        const body = (wx / 56) ** 2 + (wy / 40) ** 2 < 1
+        const spine = Math.hypot(wx, wy - 26) < 8
+        ct.push((spine ? 700 : lesion(wx, wy, z) ? 60 : body ? 40 : -1000) + 1024)
+      }
+    writeDicomFile(join(outDir, `ct_${String(k + 1).padStart(2, '0')}.dcm`), {
+      sopClassUID: '1.2.840.10008.5.1.4.1.1.2',
+      sopInstanceUID: `${studyUid}.1.${k + 1}`,
+      elements: [
+        ...common(k, z),
+        element(0x0008, 0x0060, 'CS', 'CT'),
+        element(0x0008, 0x103e, 'LO', 'CT for fusion'),
+        element(0x0020, 0x000e, 'UI', `${studyUid}.1`),
+        element(0x0020, 0x0011, 'IS', 2),
+        element(0x0020, 0x0032, 'DS', `-64\\-64\\${z}`),
+        ...grayscale16(64, 64),
+        element(0x0028, 0x0030, 'DS', '2\\2'),
+        element(0x0028, 0x1050, 'DS', 40),
+        element(0x0028, 0x1051, 'DS', 400),
+        element(0x0028, 0x1052, 'DS', -1024),
+        element(0x0028, 0x1053, 'DS', 1),
+        element(0x7fe0, 0x0010, 'OW', uint16Pixels(ct)),
+      ],
+    })
+    const pet = []
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++) {
+        const [wx, wy] = [-64 + x * 4, -64 + y * 4]
+        const body = (wx / 56) ** 2 + (wy / 40) ** 2 < 1
+        pet.push(lesion(wx, wy, z) ? 20000 : body ? 2500 : 50)
+      }
+    writeDicomFile(join(outDir, `pet_${String(k + 1).padStart(2, '0')}.dcm`), {
+      sopClassUID: SOP.pet,
+      sopInstanceUID: `${studyUid}.2.${k + 1}`,
+      elements: [
+        ...common(k, z),
+        element(0x0008, 0x0008, 'CS', 'ORIGINAL\\PRIMARY'),
+        element(0x0008, 0x0021, 'DA', '20260105'),
+        element(0x0008, 0x0022, 'DA', '20260105'),
+        element(0x0008, 0x0031, 'TM', '100000'),
+        element(0x0008, 0x0032, 'TM', '100000'),
+        element(0x0008, 0x0060, 'CS', 'PT'),
+        element(0x0008, 0x103e, 'LO', 'PET AC'),
+        element(0x0054, 0x0016, 'SQ', [[element(0x0018, 0x1072, 'TM', '090000'), element(0x0018, 0x1074, 'DS', 370000000), element(0x0018, 0x1075, 'DS', 6586.2)]]),
+        element(0x0028, 0x0051, 'CS', 'DECY\\ATTN'),
+        element(0x0054, 0x1001, 'CS', 'BQML'),
+        element(0x0054, 0x1102, 'CS', 'START'),
+        element(0x0020, 0x000e, 'UI', `${studyUid}.2`),
+        element(0x0020, 0x0011, 'IS', 3),
+        element(0x0020, 0x0032, 'DS', `-64\\-64\\${z}`),
+        ...grayscale16(32, 32),
+        element(0x0028, 0x0030, 'DS', '4\\4'),
+        element(0x0028, 0x1052, 'DS', 0),
+        element(0x0028, 0x1053, 'DS', 2),
+        element(0x7fe0, 0x0010, 'OW', uint16Pixels(pet)),
+      ],
+    })
+  }
+}
+
+// --- dynamic contrast MR: 3 slices × 6 phases, curve types I, II and III ----------------
+{
+  outDir = dir('dynamic')
+  const uid = `${ROOT}.21`
+  const curves = [
+    [100, 200, 260, 300, 330, 350], // I: persistent
+    [100, 300, 330, 330, 325, 330], // II: plateau
+    [100, 350, 380, 330, 290, 250], // III: washout
+  ]
+  const centres = [12, 24, 36]
+  let instance = 0
+  for (let phase = 0; phase < 6; phase++)
+    for (let slice = 0; slice < 3; slice++) {
+      const pixels = []
+      for (let y = 0; y < 48; y++)
+        for (let x = 0; x < 48; x++) {
+          const lesion = centres.findIndex((cx) => Math.hypot(x - cx, y - 24) < 4)
+          pixels.push(lesion >= 0 ? curves[lesion][phase] : 100)
+        }
+      instance++
+      writeDicomFile(join(outDir, `dce_${String(instance).padStart(2, '0')}.dcm`), {
+        sopClassUID: SOP.mr,
+        sopInstanceUID: `${uid}.1.${instance}`,
+        elements: [
+          ...patient('Sample^Dynamic', 'SAMPLE-DCE'),
+          ...study(uid, 'Breast MR'),
+          element(0x0008, 0x0060, 'CS', 'MR'),
+          element(0x0008, 0x103e, 'LO', 'DCE dynamic'),
+          element(0x0008, 0x0032, 'TM', `1000${phase}0`),
+          element(0x0018, 0x1060, 'DS', phase * 60000),
+          element(0x0020, 0x000e, 'UI', `${uid}.1`),
+          element(0x0020, 0x0011, 'IS', 5),
+          element(0x0020, 0x0013, 'IS', instance),
+          element(0x0020, 0x0032, 'DS', `-24\\-24\\${slice * 5}`),
+          element(0x0020, 0x0037, 'DS', '1\\0\\0\\0\\1\\0'),
+          element(0x0020, 0x0052, 'UI', `${uid}.200`),
+          element(0x0020, 0x0100, 'IS', phase + 1),
+          element(0x0020, 0x0105, 'IS', 6),
+          ...grayscale16(48, 48),
+          element(0x0028, 0x0030, 'DS', '1\\1'),
+          element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
+        ],
+      })
+    }
+}
+
+// --- DSA: an XA run with a mask frame, contrast filling, and patient motion -------------
+{
+  outDir = dir('dsa')
+  const size = 64
+  const frames = 10
+  const pixels = []
+  for (let f = 0; f < frames; f++) {
+    const shift = f >= 6 ? 2 : 0
+    const fill = f < 2 ? 0 : Math.min(1, (f - 1) / 3)
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const sx = x - shift
+        const background = Math.round(120 + 40 * Math.sin(sx / 3) * Math.cos(y / 4))
+        const vessel = Math.abs(y - 32) <= 2 ? Math.round(60 * fill) : 0
+        pixels.push(Math.max(0, background - vessel))
+      }
+  }
+  writeDicomFile(join(outDir, 'angio.dcm'), {
+    sopClassUID: '1.2.840.10008.5.1.4.1.1.12.1',
+    sopInstanceUID: `${ROOT}.22.1`,
+    elements: [
+      ...patient('Sample^Angio', 'SAMPLE-XA'),
+      ...study(`${ROOT}.22`, 'Angiography'),
+      element(0x0008, 0x0060, 'CS', 'XA'),
+      element(0x0008, 0x103e, 'LO', 'Run 1'),
+      element(0x0018, 0x1063, 'DS', 100),
+      element(0x0020, 0x000e, 'UI', `${ROOT}.22.100`),
+      element(0x0020, 0x0011, 'IS', 1),
+      element(0x0020, 0x0013, 'IS', 1),
+      element(0x0028, 0x0002, 'US', 1),
+      element(0x0028, 0x0004, 'CS', 'MONOCHROME2'),
+      element(0x0028, 0x0008, 'IS', frames),
+      element(0x0028, 0x0009, 'AT', new Uint8Array([0x18, 0x00, 0x63, 0x10])),
+      element(0x0028, 0x0010, 'US', size),
+      element(0x0028, 0x0011, 'US', size),
+      element(0x0028, 0x0100, 'US', 8),
+      element(0x0028, 0x0101, 'US', 8),
+      element(0x0028, 0x0102, 'US', 7),
+      element(0x0028, 0x0103, 'US', 0),
+      element(0x7fe0, 0x0010, 'OB', new Uint8Array(pixels)),
+    ],
+  })
+}
+
+// --- 4D CT: 4 phases × 12 slices, a sphere moving along x ------------------------------
+{
+  outDir = dir('4d')
+  const uid = `${ROOT}.23`
+  let instance = 0
+  for (let phase = 0; phase < 4; phase++)
+    for (let k = 0; k < 12; k++) {
+      const z = -k * 4
+      const pixels = []
+      for (let y = 0; y < 32; y++)
+        for (let x = 0; x < 32; x++) {
+          const [wx, wy] = [-32 + x * 2, -32 + y * 2]
+          const sphere = Math.hypot(wx - (-12 + phase * 8), wy, z + 22) < 8
+          pixels.push((sphere ? 400 : Math.hypot(wx, wy) < 28 ? 40 : -1000) + 1024)
+        }
+      instance++
+      writeDicomFile(join(outDir, `ct4d_${String(instance).padStart(2, '0')}.dcm`), {
+        sopClassUID: '1.2.840.10008.5.1.4.1.1.2',
+        sopInstanceUID: `${uid}.1.${instance}`,
+        elements: [
+          ...patient('Sample^Cardiac', 'SAMPLE-4D'),
+          ...study(uid, 'Cardiac 4D'),
+          element(0x0008, 0x0060, 'CS', 'CT'),
+          element(0x0008, 0x103e, 'LO', '4D CT'),
+          element(0x0020, 0x000e, 'UI', `${uid}.1`),
+          element(0x0020, 0x0011, 'IS', 1),
+          element(0x0020, 0x0013, 'IS', instance),
+          element(0x0020, 0x0032, 'DS', `-32\\-32\\${z}`),
+          element(0x0020, 0x0037, 'DS', '1\\0\\0\\0\\1\\0'),
+          element(0x0020, 0x0052, 'UI', `${uid}.200`),
+          element(0x0020, 0x0100, 'IS', phase + 1),
+          element(0x0020, 0x0105, 'IS', 4),
+          element(0x0018, 0x1060, 'DS', phase * 200),
+          ...grayscale16(32, 32),
+          element(0x0028, 0x0030, 'DS', '2\\2'),
+          element(0x0028, 0x1050, 'DS', 40),
+          element(0x0028, 0x1051, 'DS', 400),
+          element(0x0028, 0x1052, 'DS', -1024),
+          element(0x0028, 0x1053, 'DS', 1),
+          element(0x7fe0, 0x0010, 'OW', uint16Pixels(pixels)),
+        ],
+      })
+    }
 }
 
 // --- RLE Lossless (PS3.5 Annex G): one 8-bit segment ----------------------------

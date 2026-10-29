@@ -27,6 +27,7 @@ import { askPassword, showIssues } from '../dialogs/dialogStore'
 import { clearCursor3D } from '../comparison/cursor3d'
 import type { DisplaySet, Series, Study } from '../dicom/types'
 import { t } from '../i18n'
+import { phaseSeries } from '../functional/series'
 import { notify } from '../notifications/toastStore'
 import { clearDocumentThumbnails } from '../thumbnails/documentThumbnails'
 import { clearOverlayBitmaps } from '../cornerstone/overlayPlanes'
@@ -153,9 +154,13 @@ export async function saveHangingRule() {
  * Opens MPR or 3D for a series after checking it can become a volume, the
  * browser supports WebGL2, and the user accepts a large memory footprint.
  */
-export function openVolumeView(mode: VolumeView['mode'], displaySet: DisplaySet | null | undefined) {
+export function openVolumeView(mode: VolumeView['mode'], chosen: DisplaySet | null | undefined) {
   const name = mode === 'mpr' ? 'MPR' : '3D'
-  if (!displaySet) return notify(t('messages.selectSeries'))
+  if (!chosen) return notify(t('messages.selectSeries'))
+  // A dynamic series (4D) opens one phase at a time; the same view keeps its phases when switching mode.
+  const current = useViewer.getState().volumeView?.phases
+  const phases = current?.series.includes(chosen.series) ? current : phaseSeries(chosen.series).length ? { series: phaseSeries(chosen.series), index: 0 } : undefined
+  const displaySet = phases ? { study: chosen.study, series: phases.series[phases.index] } : chosen
   if (!supportsWebGL2()) return notify(t('messages.needsWebgl2', { name }), 'error')
   const reason = mprUnsupportedReason(displaySet.series)
   if (reason) return notify(t('messages.volumeUnavailable', { name, reason: t(reason) }))
@@ -166,7 +171,7 @@ export function openVolumeView(mode: VolumeView['mode'], displaySet: DisplaySet 
     const proceed = window.confirm(t('messages.volumeMemory', { mb, name }))
     if (!proceed) return
   }
-  showVolumeView({ mode, displaySet }, DEFAULT_TOOL[mode])
+  showVolumeView({ mode, displaySet, ...(phases && { phases }) }, DEFAULT_TOOL[mode])
 }
 
 /** Toolbar MPR/3D buttons: opening a mode, or closing it when it is already open. */

@@ -42,6 +42,10 @@
 | `compressed/rle_ct.dcm` | RLE Lossless, ৮-বিট, ৬৪×৬৪ (মাঝে মান ২০০-এর বৃত্ত) | uncompressed কপি, compressed ছবিতে redaction-সহ anonymize |
 | `prior/current/`, `prior/prior/` | একই রোগী, ২০২৬ ও ২০২৫-এর দুটো CT স্টাডি; ২০টা axial slice; আলাদা frame of reference, অবস্থান ১০০০ mm সরানো | Add files, prior তুলনা, lock sync, "CT with prior" hanging |
 | `measure/us_region.dcm` | US, একই ছবি, পুরোটা জুড়ে একটা region (0.05 cm/pixel) | আল্ট্রাসাউন্ড region calibration |
+| `fusion/` | একই রোগী ও frame of reference-এ CT (৬৪², ২ mm) আর SUV tag-সহ PET (৩২², ৪ mm), ২৪টা slice; (10, −8, −40)-এ ১০ mm ক্ষত | Fusion, PET/CT লেআউট, sphere ROI |
+| `dynamic/` | DCE MR, ৩ slice × ৬ phase (Temporal Position, Trigger Time ০–৩০০ s); x = ১২/২৪/৩৬-এ তিনটা ক্ষত, curve I/II/III | Phase-এ ভাগ, time-intensity curve |
+| `dsa/angio.dcm` | XA, ১০ frame, ৮-বিট ৬৪²; frame ১ mask, frame ৩ থেকে y = ৩২-এ ধমনী ভরে, frame ৭ থেকে ২ px সরানো | DSA, স্বয়ংক্রিয় shift, split mask |
+| `4d/` | CT, ৪ phase × ১২ slice, x বরাবর সরতে থাকা গোলক | 4D MPR, phase slider |
 
 **বড় স্টাডি:** `scripts/generate-large-study.mjs <dir> [count]` ২০০০টা 64×64 slice বানায় (`e2e/.data/large`)। E2E এটা খুলতে কত সময় লাগে মাপে (2026-10-28: ৪.৮ সেকেন্ড)।
 

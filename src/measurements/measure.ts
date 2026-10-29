@@ -4,6 +4,8 @@
 import { Enums, cache, metaData, type Types } from '@cornerstonejs/core'
 import type { Annotation } from '@cornerstonejs/tools/types'
 import { spacingSource, type SpacingSource } from '../dicom/imagePlaneMetadata'
+import { discPeak, sphereStats, type SphereStats } from '../functional/suvStats'
+import type { VolumeGrid } from '../volume/grid'
 import {
   angleAt,
   angleBetweenLines,
@@ -36,7 +38,15 @@ export interface MeasurementResult {
   stats?: Statistics
   /** Pixel values inside the ROI, for the histogram. */
   values?: Float64Array
+  /** PET: highest mean of a 1 cm³ sphere (here a disc on the image) in the region. */
+  peak?: number
+  /** Sphere ROI: statistics in the ball (3D when the series' volume is loaded). */
+  sphere?: SphereStats & { threeD: boolean; radius: number }
 }
+
+/** Finds the loaded volume of an image's series (set by the measurement setup), for 3D statistics. */
+let volumeLookup: (imageId: string) => VolumeGrid | null = () => null
+export const setVolumeLookup = (lookup: (imageId: string) => VolumeGrid | null) => (volumeLookup = lookup)
 
 export interface ImageGeometry {
   rows: number
@@ -147,13 +157,48 @@ function pixelValues(imageId: string) {
   return (index: number) => pixels[index] * slope + intercept
 }
 
+const modalityOf = (imageId: string) => (metaData.get('generalSeriesModule', imageId) as { modality?: string } | undefined)?.modality
+
 function regionStats(imageId: string, g: ImageGeometry, polygon: Point[], scale: Scale) {
   const value = pixelValues(imageId)
   if (!value) return {}
   const inside = pixelsInPolygon(polygon, g.columns, g.rows, scale.sx, scale.sy)
   const values = Float64Array.from(inside, value)
-  return { stats: statistics(values) ?? undefined, values }
+  const peak = modalityOf(imageId) === 'PT' && scale.base === 'mm' ? discPeak(value, inside, g.columns, g.rows, scale.sx, scale.sy) : undefined
+  return { stats: statistics(values) ?? undefined, values, ...(peak !== undefined && { peak }) }
 }
+
+/** An image as a one-slice grid (for sphere statistics when its volume is not loaded). */
+function imageGrid(imageId: string, g: ImageGeometry): VolumeGrid | null {
+  const value = pixelValues(imageId)
+  if (!value) return null
+  const normal = [g.row[1] * g.column[2] - g.row[2] * g.column[1], g.row[2] * g.column[0] - g.row[0] * g.column[2], g.row[0] * g.column[1] - g.row[1] * g.column[0]]
+  return {
+    dimensions: [g.columns, g.rows, 1],
+    spacing: [g.spacingX, g.spacingY, 1],
+    origin: [g.origin[0], g.origin[1], g.origin[2]],
+    direction: [...g.row, ...g.column, ...normal],
+    scalars: Float32Array.from({ length: g.columns * g.rows }, (_, i) => value(i)),
+  }
+}
+
+/** The pixel indexes inside a closed ROI on its image, for curves across phases. */
+export function roiPixels(annotation: Annotation): { imageId: string; indexes: number[] } | null {
+  const imageId = (annotation.metadata as { referencedImageId?: string }).referencedImageId
+  const shape = shapeOf(toolNameOf(annotation))
+  const g = imageId ? imageGeometry(imageId) : null
+  if (!imageId || !g || !['ellipse', 'circle', 'rectangle', 'contour', 'sphere'].includes(shape)) return null
+  const data = annotation.data as AnnotationData
+  const physical = (points: Types.Point3[]) => points.map((p): Point => {
+    const [x, y] = toIndex(g, p)
+    return [x * g.spacingX, y * g.spacingY]
+  })
+  const outline = outlineOf(shape === 'sphere' ? 'circle' : shape, physical(data.handles?.points ?? []), physical(data.contour?.polyline ?? []), data.contour?.closed !== false)
+  if (!outline?.closed) return null
+  return { imageId, indexes: pixelsInPolygon(outline.points, g.columns, g.rows, g.spacingX, g.spacingY) }
+}
+
+export { pixelValues }
 
 // --- per tool --------------------------------------------------------------------
 
@@ -173,6 +218,7 @@ export type MeasurementShape =
   | 'contour'
   | 'probe'
   | 'deviation'
+  | 'sphere'
   | 'text'
   | 'none'
 
@@ -224,6 +270,20 @@ function measureOnImage(shape: MeasurementShape, data: AnnotationData, imageId: 
       const value = pixelValues(imageId)
       const [x, y] = handles[0]?.map(Math.round) ?? [-1, -1]
       if (value && x >= 0 && y >= 0 && x < g.columns && y < g.rows) result.value = value(y * g.columns + x)
+      break
+    }
+    case 'sphere': {
+      const outline = outlineOf('circle', p, [], true)
+      if (!outline) break
+      result.area = ellipseArea('circle', p)
+      Object.assign(result, regionStats(imageId, g, outline.points, scale))
+      const world = data.handles?.points ?? []
+      if (world.length < 2) break
+      const radius = Math.hypot(world[1][0] - world[0][0], world[1][1] - world[0][1], world[1][2] - world[0][2])
+      const volume = volumeLookup(imageId)
+      const grid = volume ?? imageGrid(imageId, g)
+      const stats = grid && sphereStats(grid, world[0], radius)
+      if (stats) result.sphere = { ...stats, threeD: volume !== null, radius }
       break
     }
     case 'ellipse':
@@ -312,7 +372,8 @@ export function measureData(toolName: string, annotationData: object, targetId: 
   if (shape === 'none' || shape === 'text') return null
   // Pixel statistics appear once the image is loaded.
   const loaded = targetId.startsWith('imageId:') && cache.getImage(targetId.slice('imageId:'.length)) !== undefined
-  const key = `${targetId}|${loaded}|${calibrationVersion}|${JSON.stringify(data.handles?.points)}|${JSON.stringify(data.contour?.polyline)}|${data.contour?.closed}`
+  const threeD = shape === 'sphere' && loaded && volumeLookup(targetId.slice('imageId:'.length)) !== null
+  const key = `${targetId}|${loaded}|${threeD}|${calibrationVersion}|${JSON.stringify(data.handles?.points)}|${JSON.stringify(data.contour?.polyline)}|${data.contour?.closed}`
   const cached = resultCache.get(data)
   if (cached?.key === key) return cached.result
   const result = targetId.startsWith('imageId:') ? measureOnImage(shape, data, targetId.slice('imageId:'.length)) : measureInWorld(shape, data, targetId)

@@ -272,7 +272,15 @@ function addEntries(draft: SeriesDraft, source: SourceFile, dataSet: dicomParser
   const acquisitionTime =
     parseDicomDateTime(text(dataSet, 'x00080022'), text(dataSet, 'x00080032')) ??
     parseDicomDateTime(text(dataSet, 'x00080023'), text(dataSet, 'x00080033'))
-  const base = { file: source.file, path: source.path, instanceNumber, acquisitionTime, sopInstanceUID: text(dataSet, 'x00080018') ?? '' }
+  const base = {
+    file: source.file,
+    path: source.path,
+    instanceNumber,
+    acquisitionTime,
+    sopInstanceUID: text(dataSet, 'x00080018') ?? '',
+    temporalPosition: number(dataSet, 'x00200100'),
+    triggerTime: number(dataSet, 'x00181060'),
+  }
 
   if (kind !== 'image') {
     draft.series.images.push({ ...base, imageId: '', sliceLocation: null, frame: 0 })

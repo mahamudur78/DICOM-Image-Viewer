@@ -570,3 +570,49 @@ export function blendCameras(a: Types.ICamera, b: Types.ICamera, t: number): Par
     parallelScale: (a.parallelScale ?? 1) + ((b.parallelScale ?? 1) - (a.parallelScale ?? 1)) * t,
   }
 }
+
+// --- fusion in 3D --------------------------------------------------------------------------------
+
+/** 4 × 4 matrix (column-major, as vtk wants) moving the overlay: rotate about its centre, then translate. */
+export function registrationMatrix(translate: number[], rotate: number[], center: number[]) {
+  const [x, y, z] = rotate.map((d) => (d * Math.PI) / 180)
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)]
+  const r = [
+    [cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx],
+    [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx],
+    [-sy, cy * sx, cy * cx],
+  ]
+  // p' = R (p − c) + c + t  =  R p + (c − R c + t)
+  const offset = [0, 1, 2].map((i) => center[i] - (r[i][0] * center[0] + r[i][1] * center[1] + r[i][2] * center[2]) + translate[i])
+  return [r[0][0], r[1][0], r[2][0], 0, r[0][1], r[1][1], r[2][1], 0, r[0][2], r[1][2], r[2][2], 0, offset[0], offset[1], offset[2], 1]
+}
+
+const OVERLAY_UID_SUFFIX = '-fusion'
+
+/** Shows a second volume in colour in a 3D view (PET over CT), moved by the registration. */
+export async function addOverlayVolume(viewportId: string, volumeId: string, tf: TransferFunction, matrix: number[]) {
+  const viewport = vrViewport(viewportId)
+  if (!viewport) return
+  const uid = `${volumeId}${OVERLAY_UID_SUFFIX}`
+  if (!viewport.getActors().some((a) => a.uid === uid)) await viewport.addVolumes([{ volumeId, actorUID: uid } as never])
+  const entry = viewport.getActors().find((a) => a.uid === uid)
+  if (!entry) return
+  const actor = entry.actor as unknown as { getProperty(): { getScalarOpacity(i: number): { removeAllPoints(): void; addPoint(x: number, y: number): void }; getRGBTransferFunction(i: number): { removeAllPoints(): void; addRGBPoint(x: number, r: number, g: number, b: number): void } }; setUserMatrix(m: number[]): void }
+  const property = actor.getProperty()
+  property.getScalarOpacity(0).removeAllPoints()
+  for (const p of tf.opacity) property.getScalarOpacity(0).addPoint(p.value, p.opacity)
+  property.getRGBTransferFunction(0).removeAllPoints()
+  for (const p of tf.colors) property.getRGBTransferFunction(0).addRGBPoint(p.value, p.r, p.g, p.b)
+  actor.setUserMatrix(matrix)
+  viewport.render()
+}
+
+export function removeOverlayVolumes(viewportId: string) {
+  const viewport = vrViewport(viewportId)
+  if (!viewport) return
+  const uids = viewport.getActors().filter((a) => a.uid.endsWith(OVERLAY_UID_SUFFIX)).map((a) => a.uid)
+  if (uids.length) viewport.removeActors(uids)
+  viewport.render()
+}
+
+export const hasOverlayVolume = (viewportId: string) => vrViewport(viewportId)?.getActors().some((a) => a.uid.endsWith(OVERLAY_UID_SUFFIX)) ?? false

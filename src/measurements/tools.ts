@@ -68,6 +68,11 @@ export class SpineLabelTool extends LabelTool {
   static toolName = 'SpineLabel'
 }
 
+/** A ball drawn as its middle circle: SUVmax, SUVmean and SUVpeak in 3D when the volume is loaded. */
+export class SphereROITool extends CircleROITool {
+  static toolName = 'SphereROI'
+}
+
 /** A black box hiding burned-in text; also hidden in PNG exports. */
 export class RedactionTool extends RectangleROITool {
   static toolName = 'Redaction'
@@ -182,6 +187,7 @@ export const MEASUREMENT_TOOLS: MeasurementToolDefinition[] = [
   { Class: ProbeTool, shape: 'probe' },
   { Class: RectangleROITool, shape: 'rectangle' },
   { Class: CircleROITool, shape: 'circle' },
+  { Class: SphereROITool, shape: 'sphere' },
   { Class: PolygonTool, shape: 'contour', configuration: { spline: { type: SPLINE.Linear } } },
   { Class: PolylineTool, shape: 'contour', configuration: { allowOpenSplines: true, spline: { type: SPLINE.Linear } } },
   { Class: CurveTool, shape: 'contour', configuration: { spline: { type: SPLINE.CatmullRom } } },

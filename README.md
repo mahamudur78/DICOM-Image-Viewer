@@ -36,6 +36,7 @@ public anonymized samples. All of it stays in the git-ignored `e2e/.data/`.
 | `src/cornerstone/` | Cornerstone3D setup, viewports, tools, MPR, 3D, sync, viewport registry |
 | `src/dicom/` | File reading, header parsing, sorting, hanging protocol, window presets |
 | `src/comparison/` | Plane geometry, prior matching, 3D cursor, windows linked over BroadcastChannel |
+| `src/functional/` | Fusion (overlay rendering, registration), PET/CT layout, SUV sphere statistics, dynamic phases, time-intensity curves, DSA |
 | `src/volume/` | Volume maths (sampling, oblique slices, curved reformat, ray picking, transfer functions, meshes), reformatted DICOM |
 | `src/export/` | Image, movie, print/PDF export (own BMP/TIFF/GIF/AVI/PDF encoders), anonymization, tag editing, conversion |
 | `src/measurements/` | Measurement tools, their values (calibration, statistics), groups, panel actions, JSON/CSV |
@@ -94,6 +95,13 @@ separate chunk that starts downloading right after the first render.
   and clipping plane, scalpel (cut inside or outside, undo), distance between surface points,
   snapshots, rotation and snapshot movies, iso-surfaces with STL / OBJ / PLY export, virtual
   endoscopy with fly-through along a path, ×2 / ×4 images; coarser rendering while rotating
+- Fusion and functional imaging: any series of the patient laid over a cell or the MPR views in
+  colour (colormap, opacity, range, threshold), moved and turned by hand when the frames of
+  reference differ, and shown in 3D; a PET/CT layout (CT, PET and fused rows in three planes with a
+  rotating MIP); a sphere ROI with SUVmax / mean / peak (3D once the volume is loaded) and SUVpeak in
+  PET ROIs; time-intensity curves of ROIs on dynamic series (types Ia–III, CSV); DSA of an angiography
+  run (mask, pixel shift found per frame or by hand, split and magic mask, landmark) as a new
+  series; 4D MPR / 3D of dynamic series with a phase slider and cine
 - Export: PNG, JPEG, WebP, BMP, TIFF of a viewport, a series range or every visible viewport, as
   seen or at the original pixel size, with or without annotations and patient text (ZIP for several);
   movies as MP4, WebM, GIF or AVI; copy to the clipboard (`Ctrl+C`) or capture a region; print or

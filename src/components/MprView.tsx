@@ -19,16 +19,76 @@ import { useContextMenuTrigger } from './contextMenuTrigger'
 import { useVolume } from './useVolume'
 import { VolumeProgress } from './VolumeProgress'
 import { CprOverlay } from './CprOverlay'
+import { FusionLayer } from './FusionLayer'
+import { FUSED_ROW, PET_ROW, usePlaneSync } from '../functional/petctViews'
+import { PetCtViewport, RotatingMip } from './PetCtRows'
 import { VrViewport } from './VrViewport'
 
-/** Axial, sagittal and coronal reconstructions of one series, optionally with a 3D cell (2×2). */
+/**
+ * Axial, sagittal and coronal reconstructions of one series, optionally with
+ * a 3D cell (2×2), or the PET/CT layout.
+ */
 export function MprView() {
+  const displaySet = useViewer((s) => s.volumeView!.displaySet)
+  const pet = useViewer((s) => s.volumeView!.petct)
+  const { series } = displaySet
+  const { volumeId, progress } = useVolume(series)
+  if (pet) return <PetCtView volumeId={volumeId} progress={progress} pet={pet} />
+  return <MprGrid volumeId={volumeId} progress={progress} />
+}
+
+/** CT row (crosshairs), PET row, fusion row in three planes, and a rotating MIP. */
+function PetCtView({ volumeId, progress, pet }: { volumeId: string | null; progress: number; pet: DisplaySet }) {
+  const displaySet = useViewer((s) => s.volumeView!.displaySet)
+  const activeViewportId = useViewer((s) => s.mprViewportId)
+  const { series } = displaySet
+  const petVolume = useVolume(pet.series)
+  usePlaneSync()
+
+  useEffect(() => {
+    if (!volumeId) return
+    void showVolume(volumeId, series.images[Math.floor(series.images.length / 2)].imageId)
+  }, [volumeId, series])
+
+  return (
+    <div data-testid="petct-layout" className="relative grid h-full w-full grid-cols-[1fr_1fr_1fr_0.8fr] grid-rows-3 gap-px bg-slate-800">
+      {MPR_VIEWPORTS.map(({ id, label, orientation }, i) => (
+        <MprViewport
+          key={id}
+          viewportId={id}
+          label={label}
+          orientation={orientation}
+          displaySet={displaySet}
+          active={id === activeViewportId}
+          onActivate={() => setMprViewportId(id)}
+          fusion={false}
+          gridArea={{ gridRow: 1, gridColumn: i + 1 }}
+        />
+      ))}
+      <div style={{ gridRow: '1 / span 3', gridColumn: 4 }} className="grid">
+        <RotatingMip volumeId={petVolume.volumeId} />
+      </div>
+      {PET_ROW.map((v, i) => (
+        <div key={v.id} style={{ gridRow: 2, gridColumn: i + 1 }} className="grid min-h-0">
+          <PetCtViewport viewportId={v.id} label={v.label} orientation={v.orientation} volumeId={petVolume.volumeId} kind="pet" />
+        </div>
+      ))}
+      {FUSED_ROW.map((v, i) => (
+        <div key={v.id} style={{ gridRow: 3, gridColumn: i + 1 }} className="grid min-h-0">
+          <PetCtViewport viewportId={v.id} label={v.label} orientation={v.orientation} volumeId={volumeId} kind="fused" />
+        </div>
+      ))}
+      <VolumeProgress volumeId={volumeId} progress={Math.min(progress, petVolume.progress)} />
+    </div>
+  )
+}
+
+function MprGrid({ volumeId, progress }: { volumeId: string | null; progress: number }) {
   const displaySet = useViewer((s) => s.volumeView!.displaySet)
   const activeViewportId = useViewer((s) => s.mprViewportId)
   const with3d = useViewer((s) => s.mprWith3d)
   const preset = useViewer((s) => s.preset)
   const { series } = displaySet
-  const { volumeId, progress } = useVolume(series)
 
   useEffect(() => {
     if (!volumeId) return
@@ -74,6 +134,9 @@ interface MprViewportProps {
   displaySet: DisplaySet
   active: boolean
   onActivate: () => void
+  /** Whether the MPR fusion is drawn on this view (not on the PET/CT layout's CT row). */
+  fusion?: boolean
+  gridArea?: React.CSSProperties
 }
 
 interface MprOverlay {
@@ -84,7 +147,7 @@ interface MprOverlay {
   markers: OrientationMarkers | null
 }
 
-function MprViewport({ viewportId, label, orientation, displaySet, active, onActivate }: MprViewportProps) {
+function MprViewport({ viewportId, label, orientation, displaySet, active, onActivate, fusion = true, gridArea }: MprViewportProps) {
   const { t } = useTranslation()
   const contextMenu = useContextMenuTrigger()
   const elementRef = useRef<HTMLDivElement>(null)
@@ -138,6 +201,7 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
       className={`@container relative min-h-0 min-w-0 overflow-hidden bg-black outline-1 -outline-offset-1 ${
         active ? 'z-10 outline-2 outline-sky-500' : 'outline-slate-800'
       }`}
+      style={gridArea}
       data-viewport-id={viewportId}
       onPointerDownCapture={(event) => {
         onActivate()
@@ -148,6 +212,7 @@ function MprViewport({ viewportId, label, orientation, displaySet, active, onAct
       onContextMenu={contextMenu.onContextMenu}
     >
       <div ref={elementRef} className="absolute inset-0" />
+      <FusionLayer viewportId={viewportId} fusionKey={fusion ? undefined : null} />
       <CprOverlay viewportId={viewportId} />
       <div className="pointer-events-none absolute inset-0 font-mono text-[11px] leading-[1.4] text-slate-100 [text-shadow:0_1px_2px_#000] sm:text-xs">
         <div className="absolute left-2 top-2 max-w-[40%]">
